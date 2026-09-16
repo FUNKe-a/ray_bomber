@@ -2,6 +2,7 @@
 
 #include "game/Game.hpp"
 #include "rendering/Renderer.hpp"
+#include "networking/Client.hpp"
 
 int main()
 {
@@ -21,32 +22,41 @@ int main()
     Game game;
     Renderer renderer;
 
+    Client client;
+    client.connect("127.0.0.1", 6769);
+    client.send("CLIENT_CONNECTED\n");
+
     while (!WindowShouldClose())
     {
-        // Input
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W))
         {
             game.movePlayer(Direction::Up);
+            client.send("MOVE UP\n");
         }
 
         if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S))
         {
             game.movePlayer(Direction::Down);
+            client.send("MOVE DOWN\n");
         }
 
         if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A))
         {
             game.movePlayer(Direction::Left);
+            client.send("MOVE LEFT\n");
         }
 
         if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D))
         {
             game.movePlayer(Direction::Right);
+            client.send("MOVE RIGHT\n");
         }
 
-        // Render
         renderer.render(game);
     }
+
+    client.send("CLIENT_DISCONNECTED\n");
+    client.disconnect();
 
     CloseWindow();
 

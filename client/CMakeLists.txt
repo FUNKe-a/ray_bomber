@@ -20,7 +20,18 @@ FetchContent_Declare(
   GIT_PROGRESS TRUE
 )
 
-FetchContent_MakeAvailable(raylib)
+FetchContent_Declare(
+  asio
+  GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+  GIT_TAG asio-1-38-2
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE
+)
+
+FetchContent_MakeAvailable(
+  raylib
+  asio  
+)
 
 # Source file
 set(RAY_BOMBER_SOURCES
@@ -30,6 +41,8 @@ set(RAY_BOMBER_SOURCES
   src/game/Map.cpp
   src/game/Player.cpp
 
+  src/networking/Client.cpp
+
   src/rendering/Renderer.cpp
 )
 
@@ -37,6 +50,8 @@ set(RAY_BOMBER_HEADERS
   src/game/Game.hpp
   src/game/Map.hpp
   src/game/Player.hpp
+
+  src/networking/Client.hpp
 
   src/rendering/Renderer.hpp
 )
@@ -55,6 +70,25 @@ target_compile_features(ray_bomber PRIVATE
 target_link_libraries(ray_bomber PRIVATE
   raylib
 )
+
+target_include_directories(ray_bomber PRIVATE
+  ${asio_SOURCE_DIR}/asio/include
+)
+
+target_compile_definitions(ray_bomber PRIVATE
+  ASIO_STANDALONE
+  _WIN32_WINNT=0x0A00
+  WIN32_LEAN_AND_MEAN
+  NOGDI
+  NOUSER
+)
+
+# Windows sockets
+if (WIN32)
+  target_link_libraries(ray_bomber PRIVATE
+    ws2_32
+  )
+endif()
 
 # Warnings
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")

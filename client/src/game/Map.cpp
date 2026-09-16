@@ -2,7 +2,7 @@
 
 Map::Map()
 {
-    // Iš pradžių visas žemėlapis tuščias.
+    // Empty map at first
     for (int y = 0; y < Height; ++y)
     {
         for (int x = 0; x < Width; ++x)
@@ -11,7 +11,7 @@ Map::Map()
         }
     }
 
-    // Išorinės sienos.
+    // Outer walls
     for (int x = 0; x < Width; ++x)
     {
         tiles[0][x] = Tile::Wall;
@@ -24,7 +24,7 @@ Map::Map()
         tiles[y][Width - 1] = Tile::Wall;
     }
 
-    // Vidinės sienos.
+    // Inner walls
     tiles[2][2] = Tile::Wall;
     tiles[2][3] = Tile::Wall;
     tiles[2][5] = Tile::Wall;

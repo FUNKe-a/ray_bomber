@@ -42,7 +42,6 @@ void Renderer::drawMap(const Map& map)
                 );
             }
 
-            // Tinklelio linijos, kad būtų aiškūs langeliai.
             DrawRectangleLines(
                 screenX,
                 screenY,

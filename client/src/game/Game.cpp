@@ -30,7 +30,6 @@ void Game::movePlayer(Direction direction)
             break;
     }
 
-    // Žaidimo logika sprendžia, ar galima eiti.
     if (map.isWalkable(newX, newY))
     {
         player.setPosition(newX, newY);
