@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include <raylib.h>
 
 void Renderer::render(const Game& game)
 {

@@ -1,8 +1,7 @@
-#include "raylib.h"
-
-#include "game/Game.hpp"
-#include "rendering/Renderer.hpp"
-#include "networking/Client.hpp"
+#include <raylib.h>
+#include "Game.hpp"
+#include "Renderer.hpp"
+#include "Client.hpp"
 
 int main()
 {
