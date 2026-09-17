@@ -86,11 +86,33 @@ target_sources(rendering
 	  src/rendering/Renderer.hpp
 )
 
+add_library(protocol)
+target_sources(protocol
+  PRIVATE
+    src/protocol/Protocol.cpp
+
+  PUBLIC
+    FILE_SET HEADERS
+  BASE_DIRS
+    src/protocol
+  FILES
+    src/protocol/Protocol.hpp
+)
+target_include_directories(protocol
+  PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/protocol"
+)
+
 # different way to include asio because
 # it's a header only library.
 target_include_directories(networking 
   PUBLIC
     "${FETCHCONTENT_BASE_DIR}/asio-src/include"
+)
+
+target_link_libraries(game_logic
+  PUBLIC
+    protocol
 )
 
 target_link_libraries(rendering 
@@ -103,18 +125,18 @@ target_link_libraries(rendering
 target_link_libraries(ray_bomber
   PRIVATE
     raylib
-	game_logic
-	networking
-	rendering
+    game_logic
+    networking
+    rendering
 )
 
-# target_compile_definitions(ray_bomber PRIVATE
-#   ASIO_STANDALONE
-#   _WIN32_WINNT=0x0A00
-#   WIN32_LEAN_AND_MEAN
-#   NOGDI
-#   NOUSER
-# )
+target_compile_definitions(ray_bomber PRIVATE
+  ASIO_STANDALONE
+  _WIN32_WINNT=0x0A00
+  WIN32_LEAN_AND_MEAN
+  NOGDI
+  NOUSER
+)
 #
 # # Windows sockets
 # if (WIN32)

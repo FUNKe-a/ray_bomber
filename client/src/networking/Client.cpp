@@ -1,6 +1,8 @@
 #include "Client.hpp"
 
 #include <iostream>
+#include <utility>
+#include <memory>
 
 Client::Client()
     : socket(ioContext)
@@ -72,7 +74,7 @@ bool Client::isConnected() const
     return connected;
 }
 
-bool Client::send(const std::string& message)
+bool Client::send(const Protocol::Message& message)
 {
     if (!connected)
     {
@@ -81,9 +83,27 @@ bool Client::send(const std::string& message)
 
     try
     {
-        asio::write(
+        auto packet =
+            std::make_shared<std::vector<std::uint8_t>>(
+                Protocol::serialize(message)
+            );
+
+        asio::async_write(
             socket,
-            asio::buffer(message)
+            asio::buffer(*packet),
+            [packet](
+                const asio::error_code& error,
+                std::size_t
+            )
+            {
+                if (error)
+                {
+                    std::cerr
+                        << "Send failed: "
+                        << error.message()
+                        << '\n';
+                }
+            }
         );
 
         return true;
@@ -95,8 +115,126 @@ bool Client::send(const std::string& message)
             << exception.what()
             << '\n';
 
-        connected = false;
-
         return false;
     }
+}
+
+void Client::startReceiving()
+{
+    if (!connected)
+    {
+        return;
+    }
+
+    readHeader();
+}
+
+void Client::poll()
+{
+    ioContext.poll();
+}
+
+void Client::readHeader()
+{
+    asio::async_read(
+        socket,
+        asio::buffer(headerBuffer),
+        [this](
+            const asio::error_code& error,
+            std::size_t
+        )
+        {
+            if (error)
+            {
+                if (error != asio::error::operation_aborted)
+                {
+                    std::cerr
+                        << "Receive header failed: "
+                        << error.message()
+                        << '\n';
+                }
+
+                connected = false;
+                return;
+            }
+
+            const auto messageType =
+                static_cast<Protocol::MessageType>(
+                    headerBuffer[0]
+                );
+
+            const std::uint16_t bodyLength =
+                (static_cast<std::uint16_t>(headerBuffer[1]) << 8) |
+                static_cast<std::uint16_t>(headerBuffer[2]);
+
+            bodyBuffer.resize(bodyLength);
+
+            if (bodyLength == 0)
+            {
+                Protocol::Message message{
+                    messageType,
+                    {}
+                };
+
+                receivedMessages.push(std::move(message));
+
+                readHeader();
+                return;
+            }
+
+            readBody(messageType);
+        }
+    );
+}
+
+void Client::readBody(Protocol::MessageType messageType)
+{
+    asio::async_read(
+        socket,
+        asio::buffer(bodyBuffer),
+        [this, messageType](
+            const asio::error_code& error,
+            std::size_t
+        )
+        {
+            if (error)
+            {
+                if (error != asio::error::operation_aborted)
+                {
+                    std::cerr
+                        << "Receive body failed: "
+                        << error.message()
+                        << '\n';
+                }
+
+                connected = false;
+                return;
+            }
+
+            Protocol::Message message{
+                messageType,
+                std::move(bodyBuffer)
+            };
+
+            receivedMessages.push(std::move(message));
+
+            bodyBuffer.clear();
+
+            readHeader();
+        }
+    );
+}
+
+bool Client::receive(Protocol::Message& message)
+{
+    if (receivedMessages.empty())
+    {
+        return false;
+    }
+
+    message = std::move(receivedMessages.front());
+
+    receivedMessages.pop();
+
+    return true;
 }
