@@ -29,7 +29,7 @@ func main() {
 
 		// TODO fix problem that idCounter will overfill
 		// if people will join and leave
-		match.Players[conn] = &gamelogic.Player{ID: idCounter}
+		match.Players[conn] = &gamelogic.Player{ID: idCounter, X: 1, Y: 1}
 		greetMsg := protocol.Message{Type: 0, Data: protocol.Greeting{ID: idCounter}}
 		greetInBytes, _ := serdes.Serialize(greetMsg)
 		conn.Write(greetInBytes)
@@ -46,6 +46,8 @@ func main() {
 					continue
 				}
 				slog.Debug("Message received.", "msgType", msg.Type)
+
+				handler_c <- TraceableMessage{Conn: player_conn, Msg: msg}
 
 			}
 		}(conn, h_channel)
@@ -74,23 +76,26 @@ func messageHandler(match *gamelogic.GameMatch, c <-chan TraceableMessage) {
 	for bundle := range c {
 		switch msg := bundle.Msg.Data.(type) {
 		case protocol.MoveRequested:
-			newX := match.Players[bundle.Conn].X
-			newY := match.Players[bundle.Conn].Y
+			nX := int(match.Players[bundle.Conn].X)
+			nY := int(match.Players[bundle.Conn].Y)
 
 			switch msg.Direction {
 			case 0:
-				newY += 1
+				nY -= 1
 			case 1:
-				newX += 1
+				nY += 1
 			case 2:
-				newY -= 1
+				nX -= 1
 			case 3:
-				newX -= 1
+				nX += 1
 			}
 
-			if newX > 0 && newX < uint8(len(match.Board)) && newY > 0 && newY < uint8(len(match.Board[0])) {
-				if match.Board[newX][newY] == gamelogic.EmptyTile {
-					sendMsg := protocol.Message{Type: 0, Data: protocol.PlayerMoved{ID: match.Players[bundle.Conn].ID, X: newX, Y: newY}}
+			if nY >= 0 && nY < len(match.Board) && nX >= 0 && nX < len(match.Board[0]) {
+				if match.Board[nY][nX] == gamelogic.EmptyTile {
+					match.Players[bundle.Conn].X = uint8(nX)
+					match.Players[bundle.Conn].Y = uint8(nY)
+
+					sendMsg := protocol.Message{Type: protocol.MsgPlayerMoved, Data: protocol.PlayerMoved{ID: match.Players[bundle.Conn].ID, X: uint8(nX), Y: uint8(nY)}}
 					serialized, _ := serdes.Serialize(sendMsg)
 					match.Broadcast(serialized)
 					slog.Debug("Message broadcasted.", "msgType", sendMsg.Type)

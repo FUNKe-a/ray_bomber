@@ -21,15 +21,37 @@ type GameMatch struct {
 }
 
 func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
-	board := make([][]uint8, sizeX)
-	for i := range board {
-		board[i] = make([]uint8, sizeY)
+	// board := make([][]uint8, sizeY)
+	// for i := range board {
+	// 	board[i] = make([]uint8, sizeX)
+	// }
+
+	board := [13][15]uint8 {
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1,},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 	}
-	return GameMatch{Players: make(map[net.Conn]*Player), Board: board, IdCount: 20}
+
+	slice := make([][]uint8, len(board))
+    for i := range board {
+        slice[i] = board[i][:] 
+    }
+
+	return GameMatch{Players: make(map[net.Conn]*Player), Board: slice, IdCount: 20}
 }
 
 func (board *GameMatch) Broadcast(data []byte) {
-	for k, _ := range board.Players {
+	for k := range board.Players {
 		k.Write(data)
 	}
 }
