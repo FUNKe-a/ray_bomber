@@ -8,6 +8,11 @@ const (
 	MsgPlayerMoved
 )
 
+type Message struct {
+	Type uint8
+	Data any
+}
+
 type Greeting struct {
 	ID uint8
 }

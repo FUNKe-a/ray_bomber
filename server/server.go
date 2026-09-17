@@ -1,47 +1,45 @@
 package main
 
 import (
-	"encoding/binary"
-	"fmt"
 	"github.com/FUNKe-a/ray_bomber/server/internal/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/serdes"
-	"io"
+	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
+	"fmt"
 	"net"
 )
 
+// const (
+// 	emptyTile = iota
+// 	wallTile
+// 	bombTile
+// )
+//
+// type Player struct {
+// 	ID   uint8
+// 	Conn net.Conn
+// 	X, Y int
+// }
+
 func main() {
-	ln, err := net.Listen("tcp", "127.0.0.1:6769")
-	if err != nil {
-		// handle error
-	}
+	// Players := make(map[uint8]*Player)
+	// gameBoard := [15][13]*uint8{}
+	// IdCounter := 10
+	ln, _ := net.Listen("tcp", "127.0.0.1:6769")
+
+	h_channel := make(chan protocol.Message)
+
 	for {
-		c, err := ln.Accept()
-		if err != nil {
-			// handle error
-		}
+		conn, _ := ln.Accept()
 
-		go func(conn net.Conn) {
-			conn.Write([]byte{0x00, 0x00, 0x01, 0x01})
+		go func(player_conn net.Conn, handler_c chan protocol.Message) {
+			player_conn.Write([]byte{0x00, 0x00, 0x01, 0x01})
 
-			headBuffer := make([]byte, 3)
 			for {
-				io.ReadFull(conn, headBuffer)
-
-				msgLength := binary.BigEndian.Uint16(headBuffer[1:3])
-
-				bodyBuffer := make([]byte, msgLength)
-				io.ReadFull(conn, bodyBuffer)
-				msg, err := serdes.Deserialize(headBuffer[0], bodyBuffer)
-
-				switch msg.(type) {
-				case protocol.MoveRequested:
-					fmt.Println("requested move")
-				}
-
+				_, err := netio.ReadAndDeserialize(player_conn)
 				if err != nil {
-					break
+					fmt.Println(err)
+					continue 
 				}
 			}
-		}(c)
+		}(conn, h_channel)
 	}
 }
