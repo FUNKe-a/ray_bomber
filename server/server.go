@@ -1,28 +1,17 @@
 package main
 
 import (
-	"github.com/FUNKe-a/ray_bomber/server/internal/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 	"fmt"
+	// "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
+	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
+	"github.com/FUNKe-a/ray_bomber/server/internal/protocol"
+	"github.com/FUNKe-a/ray_bomber/server/internal/serdes"
 	"net"
 )
 
-// const (
-// 	emptyTile = iota
-// 	wallTile
-// 	bombTile
-// )
-//
-// type Player struct {
-// 	ID   uint8
-// 	Conn net.Conn
-// 	X, Y int
-// }
-
 func main() {
-	// Players := make(map[uint8]*Player)
-	// gameBoard := [15][13]*uint8{}
-	// IdCounter := 10
+	// match := gamelogic.CreateMatch()
+
 	ln, _ := net.Listen("tcp", "127.0.0.1:6769")
 
 	h_channel := make(chan protocol.Message)
@@ -31,14 +20,21 @@ func main() {
 		conn, _ := ln.Accept()
 
 		go func(player_conn net.Conn, handler_c chan protocol.Message) {
-			player_conn.Write([]byte{0x00, 0x00, 0x01, 0x01})
 
 			for {
-				_, err := netio.ReadAndDeserialize(player_conn)
+				head, body, err := netio.ReadMessage(player_conn)
 				if err != nil {
 					fmt.Println(err)
-					continue 
+					continue
 				}
+				msg, err := serdes.Deserialize(head, body)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+
+				msgInBytes, err := serdes.Serialize(msg)
+				player_conn.Write(msgInBytes)
 			}
 		}(conn, h_channel)
 	}
