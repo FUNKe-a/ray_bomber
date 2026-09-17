@@ -7,11 +7,67 @@ import (
 	"github.com/FUNKe-a/ray_bomber/server/internal/serdes"
 	"log/slog"
 	"net"
+	"os"
 )
+
+func main() {
+	setupLogLevel()
+
+	match := gamelogic.CreateMatch(15, 13)
+
+	var idCounter uint8 = 20
+
+	ln, _ := net.Listen("tcp", "127.0.0.1:6769")
+	slog.Info("TCP socket opened on 127.0.0.1:6769")
+
+	h_channel := make(chan TraceableMessage)
+
+	go messageHandler(&match, h_channel)
+
+	for {
+		conn, _ := ln.Accept()
+
+		// TODO fix problem that idCounter will overfill
+		// if people will join and leave
+		match.Players[conn] = &gamelogic.Player{ID: idCounter}
+		greetMsg := protocol.Message{Type: 0, Data: protocol.Greeting{ID: idCounter}}
+		greetInBytes, _ := serdes.Serialize(greetMsg)
+		conn.Write(greetInBytes)
+
+		go func(player_conn net.Conn, handler_c chan<- TraceableMessage) {
+			for {
+				head, body, err := netio.ReadMessage(player_conn)
+				if err != nil {
+					continue
+				}
+
+				msg, err := serdes.Deserialize(head, body)
+				if err != nil {
+					continue
+				}
+				slog.Debug("Message received.", "msgType", msg.Type)
+
+			}
+		}(conn, h_channel)
+
+		idCounter += 1
+	}
+}
 
 type TraceableMessage struct {
 	Conn net.Conn
 	Msg  protocol.Message
+}
+
+func setupLogLevel() {
+	opts := &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}
+
+	handler := slog.NewTextHandler(os.Stdout, opts)
+	logger := slog.New(handler)
+
+	slog.SetDefault(logger)
 }
 
 func messageHandler(match *gamelogic.GameMatch, c <-chan TraceableMessage) {
@@ -37,48 +93,9 @@ func messageHandler(match *gamelogic.GameMatch, c <-chan TraceableMessage) {
 					sendMsg := protocol.Message{Type: 0, Data: protocol.PlayerMoved{ID: match.Players[bundle.Conn].ID, X: newX, Y: newY}}
 					serialized, _ := serdes.Serialize(sendMsg)
 					match.Broadcast(serialized)
+					slog.Debug("Message broadcasted.", "msgType", sendMsg.Type)
 				}
 			}
 		}
-	}
-}
-
-func main() {
-	match := gamelogic.CreateMatch(15, 13)
-
-	var idCounter uint8 = 20
-
-	ln, _ := net.Listen("tcp", "127.0.0.1:6769")
-	slog.Info("TCP socket opened on 127.0.0.1:6769")
-
-	h_channel := make(chan TraceableMessage)
-
-	for {
-		conn, _ := ln.Accept()
-
-		// TODO fix problem that idCounter will overfill
-		// if people will join and leave
-		match.Players[conn] = &gamelogic.Player{ID: idCounter}
-		greetMsg := protocol.Message{Type: 0, Data: protocol.Greeting{ID: idCounter}}
-		greetInBytes, _ := serdes.Serialize(greetMsg)
-		conn.Write(greetInBytes)
-
-		go func(player_conn net.Conn, handler_c chan<- TraceableMessage) {
-			for {
-				head, body, err := netio.ReadMessage(player_conn)
-				if err != nil {
-					continue
-				}
-
-				msg, err := serdes.Deserialize(head, body)
-				if err != nil {
-					continue
-				}
-				slog.Info("Message received.", "msgType", msg.Type)
-
-			}
-		}(conn, h_channel)
-
-		idCounter += 1
 	}
 }
