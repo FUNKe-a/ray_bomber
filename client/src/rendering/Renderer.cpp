@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include <raylib.h>
 
 void Renderer::render(const Game& game)
 {
@@ -42,7 +43,6 @@ void Renderer::drawMap(const Map& map)
                 );
             }
 
-            // Tinklelio linijos, kad būtų aiškūs langeliai.
             DrawRectangleLines(
                 screenX,
                 screenY,

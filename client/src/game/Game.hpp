@@ -2,6 +2,7 @@
 
 #include "Map.hpp"
 #include "Player.hpp"
+#include "../protocol/Protocol.hpp"
 
 enum class Direction
 {
@@ -17,6 +18,8 @@ public:
     Game();
 
     void movePlayer(Direction direction);
+
+    void handleMessage(const Protocol::Message& message);
 
     const Map& getMap() const;
     const Player& getPlayer() const;

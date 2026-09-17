@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.4)
+cmake_minimum_required(VERSION 4.3)
 
 project(ray_bomber
   VERSION 0.1.0
@@ -8,8 +8,14 @@ project(ray_bomber
 include(FetchContent)
 
 # Options
+set(outputDir "${CMAKE_SOURCE_DIR}/bin/${CMAKE_SYSTEM_NAME}/${CMAKE_BUILD_TYPE}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${outputDir}/archive")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${outputDir}")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${outputDir}")
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(FETCHCONTENT_QUIET FALSE)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Dependencies
 FetchContent_Declare(
@@ -19,59 +25,135 @@ FetchContent_Declare(
   GIT_SHALLOW TRUE
   GIT_PROGRESS TRUE
 )
-
-FetchContent_MakeAvailable(raylib)
-
-# Source file
-set(RAY_BOMBER_SOURCES
-  src/main.cpp
-
-  src/game/Game.cpp
-  src/game/Map.cpp
-  src/game/Player.cpp
-
-  src/rendering/Renderer.cpp
+FetchContent_Declare(
+  asio
+  GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+  GIT_TAG asio-1-38-2
+  SOURCE_SUBDIR "placeholder"
 )
 
-set(RAY_BOMBER_HEADERS
-  src/game/Game.hpp
-  src/game/Map.hpp
-  src/game/Player.hpp
-
-  src/rendering/Renderer.hpp
-)
-
-
-# Executable
-add_executable(ray_bomber
-  ${RAY_BOMBER_SOURCES}
-  ${RAY_BOMBER_HEADERS}
-)
-
-target_compile_features(ray_bomber PRIVATE
-  cxx_std_20
-)
-
-target_link_libraries(ray_bomber PRIVATE
+FetchContent_MakeAvailable(
   raylib
+  asio  
 )
 
-# Warnings
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-  target_compile_options(ray_bomber PRIVATE
-    -Wall
-    -Wextra
-    -Wpedantic
-  )
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-  target_compile_options(ray_bomber PRIVATE
-    /W4
-  )
-endif()
-
-# Output directories
-set_target_properties(ray_bomber PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/$<CONFIG>"
+add_executable(ray_bomber)
+target_sources(ray_bomber
+  PRIVATE
+    src/main.cpp
 )
+
+add_library(game_logic)
+target_sources(game_logic
+  PRIVATE
+    src/game/Game.cpp
+    src/game/Map.cpp
+    src/game/Player.cpp
+
+  PUBLIC
+    FILE_SET HEADERS
+	BASE_DIRS
+	  src/game
+	FILES
+	  src/game/Game.hpp
+	  src/game/Map.hpp
+	  src/game/Player.hpp
+)
+
+add_library(networking)
+target_sources(networking
+  PRIVATE
+    src/networking/Client.cpp
+
+  PUBLIC
+    FILE_SET HEADERS
+	BASE_DIRS
+	  src/networking
+	FILES
+	  src/networking/Client.hpp
+)
+
+add_library(rendering)
+target_sources(rendering
+  PRIVATE
+  src/rendering/Renderer.cpp
+
+  PUBLIC
+    FILE_SET HEADERS
+	BASE_DIRS
+	  src/rendering
+	FILES
+	  src/rendering/Renderer.hpp
+)
+
+add_library(protocol)
+target_sources(protocol
+  PRIVATE
+    src/protocol/Protocol.cpp
+
+  PUBLIC
+    FILE_SET HEADERS
+  BASE_DIRS
+    src/protocol
+  FILES
+    src/protocol/Protocol.hpp
+)
+target_include_directories(protocol
+  PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/protocol"
+)
+
+# different way to include asio because
+# it's a header only library.
+target_include_directories(networking 
+  PUBLIC
+    "${FETCHCONTENT_BASE_DIR}/asio-src/include"
+)
+
+target_link_libraries(game_logic
+  PUBLIC
+    protocol
+)
+
+target_link_libraries(rendering 
+  PRIVATE
+    raylib
+  PUBLIC
+    game_logic
+)
+
+target_link_libraries(ray_bomber
+  PRIVATE
+    raylib
+    game_logic
+    networking
+    rendering
+)
+
+target_compile_definitions(ray_bomber PRIVATE
+  ASIO_STANDALONE
+  _WIN32_WINNT=0x0A00
+  WIN32_LEAN_AND_MEAN
+  NOGDI
+  NOUSER
+)
+#
+# # Windows sockets
+# if (WIN32)
+#   target_link_libraries(ray_bomber PRIVATE
+#     ws2_32
+#   )
+# endif()
+#
+# # Warnings
+# if (CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+#   target_compile_options(ray_bomber PRIVATE
+#     -Wall
+#     -Wextra
+#     -Wpedantic
+#   )
+# elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+#   target_compile_options(ray_bomber PRIVATE
+#     /W4
+#   )
+# endif()
