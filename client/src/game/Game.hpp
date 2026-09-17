@@ -2,7 +2,7 @@
 
 #include "Map.hpp"
 #include "Player.hpp"
-#include "../protocol/Protocol.hpp"
+#include "Protocol.hpp"
 
 enum class Direction
 {
