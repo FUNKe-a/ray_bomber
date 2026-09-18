@@ -44,7 +44,7 @@ int main()
 
         if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W))
         {
-            game.movePlayer(Direction::Up);
+            // game.movePlayer(Direction::Up);
             client.send(
                 Protocol::createMoveRequest(
                     Protocol::Direction::Up
@@ -54,7 +54,7 @@ int main()
 
         if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S))
         {
-            game.movePlayer(Direction::Down);
+            // game.movePlayer(Direction::Down);
             client.send(
                 Protocol::createMoveRequest(
                     Protocol::Direction::Down
@@ -64,7 +64,7 @@ int main()
 
         if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_A))
         {
-            game.movePlayer(Direction::Left);
+            // game.movePlayer(Direction::Left);
             client.send(
                 Protocol::createMoveRequest(
                     Protocol::Direction::Left
@@ -74,7 +74,7 @@ int main()
 
         if (IsKeyPressed(KEY_RIGHT) || IsKeyPressed(KEY_D))
         {
-            game.movePlayer(Direction::Right);
+            // game.movePlayer(Direction::Right);
             client.send(
                 Protocol::createMoveRequest(
                     Protocol::Direction::Right

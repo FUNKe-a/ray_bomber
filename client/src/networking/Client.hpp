@@ -6,7 +6,7 @@
 
 #include <asio.hpp>
 
-#include "../protocol/Protocol.hpp"
+#include "Protocol.hpp"
 
 class Client
 {

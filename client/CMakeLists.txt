@@ -93,14 +93,10 @@ target_sources(protocol
 
   PUBLIC
     FILE_SET HEADERS
-  BASE_DIRS
-    src/protocol
-  FILES
-    src/protocol/Protocol.hpp
-)
-target_include_directories(protocol
-  PUBLIC
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/protocol"
+    BASE_DIRS
+      src/protocol
+    FILES
+      src/protocol/Protocol.hpp
 )
 
 # different way to include asio because
@@ -110,6 +106,10 @@ target_include_directories(networking
     "${FETCHCONTENT_BASE_DIR}/asio-src/include"
 )
 
+target_link_libraries(networking
+  PUBLIC
+    protocol
+)
 target_link_libraries(game_logic
   PUBLIC
     protocol
@@ -130,13 +130,15 @@ target_link_libraries(ray_bomber
     rendering
 )
 
-target_compile_definitions(ray_bomber PRIVATE
-  ASIO_STANDALONE
-  _WIN32_WINNT=0x0A00
-  WIN32_LEAN_AND_MEAN
-  NOGDI
-  NOUSER
-)
+if (WIN32)
+  target_compile_definitions(ray_bomber PRIVATE
+    ASIO_STANDALONE
+    _WIN32_WINNT=0x0A00
+    WIN32_LEAN_AND_MEAN
+    NOGDI
+    NOUSER
+  )
+endif()
 #
 # # Windows sockets
 # if (WIN32)
