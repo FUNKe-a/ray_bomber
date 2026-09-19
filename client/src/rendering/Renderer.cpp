@@ -8,7 +8,7 @@ void Renderer::render(const Game& game)
     ClearBackground(RAYWHITE);
 
     drawMap(game.getMap());
-    drawPlayer(game.getPlayer());
+    drawPlayers(game);
 
     EndDrawing();
 }
@@ -54,16 +54,34 @@ void Renderer::drawMap(const Map& map)
     }
 }
 
-void Renderer::drawPlayer(const Player& player)
+void Renderer::drawPlayers(const Game& game)
 {
-    int screenX = player.getX() * TileSize;
-    int screenY = player.getY() * TileSize;
+    const std::uint8_t localPlayerId = game.getLocalPlayerId();
+
+    for (const auto& [playerId, player] : game.getPlayers())
+        drawPlayer(player, playerId == localPlayerId);
+}
+
+
+void Renderer::drawPlayer(
+    const Player& player,
+    bool isLocalPlayer
+)
+{
+    const int screenX =
+        player.getX() * TileSize;
+
+    const int screenY =
+        player.getY() * TileSize;
+
+    const Color color =
+        isLocalPlayer ? BLUE : RED;
 
     DrawRectangle(
         screenX + 8,
         screenY + 8,
         TileSize - 16,
         TileSize - 16,
-        BLUE
+        color
     );
 }

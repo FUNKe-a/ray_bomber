@@ -3,108 +3,127 @@
 #include <iostream>
 
 Game::Game()
-    : map(),
-      player(1, 1)
+    : map()
 {
-}
-
-void Game::movePlayer(Direction direction)
-{
-    int newX = player.getX();
-    int newY = player.getY();
-
-    switch (direction)
-    {
-        case Direction::Up:
-            --newY;
-            break;
-
-        case Direction::Down:
-            ++newY;
-            break;
-
-        case Direction::Left:
-            --newX;
-            break;
-
-        case Direction::Right:
-            ++newX;
-            break;
-    }
-
-    if (map.isWalkable(newX, newY))
-    {
-        player.setPosition(newX, newY);
-    }
 }
 
 void Game::handleMessage(const Protocol::Message& message)
 {
     switch (message.type)
     {
-    case Protocol::MessageType::PlayerMoved:
-    {
-        const auto moved =
-            Protocol::deserializePlayerMoved(message);
+        case Protocol::MessageType::Greeting:
+            handleGreeting(message);
+            break;
 
-        player.setPosition(
-            moved.x,
-            moved.y
+        case Protocol::MessageType::PlayerJoined:
+            handlePlayerJoined(message);
+            break;
+
+        case Protocol::MessageType::PlayerLeft:
+            handlePlayerLeft(message);
+            break;
+
+        case Protocol::MessageType::PlayerMoved:
+            handlePlayerMoved(message);
+            break;
+
+        default:
+            break;
+    }
+}
+
+void Game::handleGreeting(const Protocol::Message& message)
+{
+    const auto greeting = Protocol::deserializeGreeting(message);
+
+    localPlayerId = greeting.id;
+    hasLocalPlayerId = true;
+
+    std::cout
+        << "Received Greeting\n"
+        << "  Local player ID: "
+        << static_cast<int>(localPlayerId)
+        << '\n';
+}
+
+void Game::handlePlayerJoined(const Protocol::Message& message)
+{
+    const auto joined = Protocol::deserializePlayerJoined(message);
+
+    const auto [iterator, inserted] =
+        players.emplace(
+            joined.id,
+            Player(
+                joined.id,
+                joined.startX,
+                joined.startY
+            )
         );
 
-        break;
+    if (!inserted)
+    {
+        iterator->second.setPosition(
+            joined.startX,
+            joined.startY
+        );
     }
 
-    case Protocol::MessageType::Greeting:
-    {
-        const auto greeting =
-            Protocol::deserializeGreeting(message);
+    std::cout
+        << "Player joined\n"
+        << "  ID: "
+        << static_cast<int>(joined.id)
+        << '\n'
+        << "  Position: "
+        << static_cast<int>(joined.startX)
+        << ", "
+        << static_cast<int>(joined.startY)
+        << '\n';
+}
 
-        std::cout
-            << "Received Greeting\n"
-            << "  ID: "
-            << static_cast<int>(greeting.id)
+void Game::handlePlayerLeft(const Protocol::Message& message)
+{
+    const auto left = Protocol::deserializePlayerLeft(message);
+
+    players.erase(left.id);
+
+    std::cout
+        << "Player left\n"
+        << "  ID: "
+        << static_cast<int>(left.id)
+        << '\n';
+}
+
+void Game::handlePlayerMoved(const Protocol::Message& message)
+{
+    const auto moved = Protocol::deserializePlayerMoved(message);
+
+    auto iterator = players.find(moved.id);
+
+    if (iterator == players.end())
+    {
+        std::cerr
+            << "Received PlayerMoved for unknown player: "
+            << static_cast<int>(moved.id)
             << '\n';
 
-        break;
+        return;
     }
 
-    case Protocol::MessageType::PlayerJoined:
-    {
-        const auto joined =
-            Protocol::deserializePlayerJoined(message);
+    iterator->second.setPosition(
+        moved.x,
+        moved.y
+    );
 
-        std::cout
-            << "Received PlayerJoined\n"
-            << "  ID: "
-            << static_cast<int>(joined.id)
-            << '\n'
-            << "  Position: "
-            << static_cast<int>(joined.startX)
-            << ", "
-            << static_cast<int>(joined.startY)
-            << '\n';
-
-        break;
-    }
-
-    case Protocol::MessageType::PlayerLeft:
-    {
-        const auto left =
-            Protocol::deserializePlayerLeft(message);
-
-        std::cout
-            << "Received PlayerLeft\n"
-            << "  ID: "
-            << static_cast<int>(left.id)
-            << '\n';
-
-        break;
-    }
-
-    default:
-        break;
-    }
+    std::cout
+        << "Player moved\n"
+        << "  ID: "
+        << static_cast<int>(moved.id)
+        << '\n'
+        << "  Position: "
+        << static_cast<int>(moved.x)
+        << ", "
+        << static_cast<int>(moved.y)
+        << '\n';
 }
 
 const Map& Game::getMap() const
@@ -112,7 +131,34 @@ const Map& Game::getMap() const
     return map;
 }
 
-const Player& Game::getPlayer() const
+const std::unordered_map<std::uint8_t, Player>& Game::getPlayers() const
 {
-    return player;
+    return players;
+}
+
+const Player* Game::getPlayer(std::uint8_t id) const
+{
+    const auto iterator = players.find(id);
+
+    if (iterator == players.end())
+    {
+        return nullptr;
+    }
+
+    return &iterator->second;
+}
+
+const Player* Game::getLocalPlayer() const
+{
+    if (!hasLocalPlayerId)
+    {
+        return nullptr;
+    }
+
+    return getPlayer(localPlayerId);
+}
+
+std::uint8_t Game::getLocalPlayerId() const
+{
+    return localPlayerId;
 }

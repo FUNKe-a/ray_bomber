@@ -11,5 +11,6 @@ public:
 
 private:
     void drawMap(const Map& map);
-    void drawPlayer(const Player& player);
+    void drawPlayers(const Game& game);
+    void drawPlayer(const Player& player, bool isLocalPlayer);
 };

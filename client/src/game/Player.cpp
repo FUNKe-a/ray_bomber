@@ -1,9 +1,15 @@
 #include "Player.hpp"
 
-Player::Player(int startX, int startY)
-    : x(startX),
+Player::Player(std::uint8_t id, int startX, int startY)
+    : id(id),
+      x(startX),
       y(startY)
 {
+}
+
+std::uint8_t Player::getId() const
+{
+    return id;
 }
 
 int Player::getX() const
