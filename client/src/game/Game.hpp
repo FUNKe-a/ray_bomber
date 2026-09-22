@@ -29,7 +29,7 @@ public:
     const Player* getPlayer(std::uint8_t id) const;
     const Player* getLocalPlayer() const;
     
-    ./std::uint8_t getLocalPlayerId() const;
+    std::uint8_t getLocalPlayerId() const;
 
 private:
     void handleGreeting(const Protocol::Message& message);

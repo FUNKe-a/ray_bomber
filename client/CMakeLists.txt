@@ -40,7 +40,22 @@ FetchContent_MakeAvailable(
 add_executable(ray_bomber)
 target_sources(ray_bomber
   PRIVATE
+    src/Application.cpp
     src/main.cpp
+    src/application/ApplicationState.hpp
+    src/scenes/ConnectingScene.cpp
+    src/scenes/ConnectingScene.hpp
+    src/scenes/MenuScene.cpp
+    src/scenes/MenuScene.hpp
+    src/scenes/PlayingScene.cpp
+    src/scenes/PlayingScene.hpp
+)
+
+target_include_directories(ray_bomber
+  PRIVATE
+    src
+    src/application
+    src/scenes
 )
 
 add_library(game_logic)
@@ -73,19 +88,6 @@ target_sources(networking
 	  src/networking/Client.hpp
 )
 
-add_library(rendering)
-target_sources(rendering
-  PRIVATE
-  src/rendering/Renderer.cpp
-
-  PUBLIC
-    FILE_SET HEADERS
-	BASE_DIRS
-	  src/rendering
-	FILES
-	  src/rendering/Renderer.hpp
-)
-
 add_library(protocol)
 target_sources(protocol
   PRIVATE
@@ -99,8 +101,7 @@ target_sources(protocol
       src/protocol/Protocol.hpp
 )
 
-# different way to include asio because
-# it's a header only library.
+
 target_include_directories(networking 
   PUBLIC
     "${FETCHCONTENT_BASE_DIR}/asio-src/include"
@@ -115,19 +116,11 @@ target_link_libraries(game_logic
     protocol
 )
 
-target_link_libraries(rendering 
-  PRIVATE
-    raylib
-  PUBLIC
-    game_logic
-)
-
 target_link_libraries(ray_bomber
   PRIVATE
     raylib
     game_logic
     networking
-    rendering
 )
 
 if (WIN32)

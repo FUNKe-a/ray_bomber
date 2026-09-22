@@ -86,6 +86,12 @@ void Game::handlePlayerLeft(const Protocol::Message& message)
 
     players.erase(left.id);
 
+    if(left.id == localPlayerId)
+    {
+        localPlayerId = 0;
+        hasLocalPlayerId = false;
+    }
+
     std::cout
         << "Player left\n"
         << "  ID: "
