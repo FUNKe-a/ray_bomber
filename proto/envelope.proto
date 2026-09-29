@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+import "player.proto";
+
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+message Envelope {
+  oneof payload {
+    player.Greeting greeting = 1;
+    player.PlayerEvent player_event = 2;
+    player.PlayerMovement player_movement = 3;
+    player.MoveRequest move_request = 4;
+  }
+}

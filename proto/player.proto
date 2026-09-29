@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package player;
 
-option go_package = "github.com/FUNKe-a/ray_bomber/server;protocol";
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
 
 // server messages
 message Greeting {
