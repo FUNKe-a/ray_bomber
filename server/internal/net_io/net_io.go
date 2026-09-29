@@ -27,3 +27,18 @@ func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
 
 	return err
 }
+
+func SendMessage(conn net.Conn, envelope *protocol.Envelope) error {
+	bytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return err
+	}
+
+	headBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(headBuf, uint32(len(bytes)))
+
+	packet := append(headBuf, bytes...)
+
+	_, err = conn.Write(packet)
+	return err
+}

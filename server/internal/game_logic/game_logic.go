@@ -8,7 +8,7 @@ const (
 )
 
 type Player struct {
-	ID   int32
+	ID   uint32
 	X, Y int32
 }
 

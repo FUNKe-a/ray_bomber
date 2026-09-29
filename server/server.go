@@ -3,11 +3,9 @@ package main
 //go:generate protoc --proto_path=../proto --go_out=internal/gen/protocol --go_opt=paths=source_relative ../proto/player.proto ../proto/envelope.proto
 
 import (
-	"encoding/binary"
 	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
-	"google.golang.org/protobuf/proto"
 	"log/slog"
 	"net"
 	"os"
@@ -18,7 +16,7 @@ func main() {
 
 	match := gamelogic.CreateMatch(15, 13)
 
-	var idCounter uint8 = 20
+	var idCounter uint32 = 20
 
 	ln, _ := net.Listen("tcp", "127.0.0.1:6769")
 	slog.Info("TCP socket opened on 127.0.0.1:6769")
@@ -32,10 +30,15 @@ func main() {
 
 		// TODO fix problem that idCounter will overfill
 		// if people will join and leave
-		// match.Players[conn] = &gamelogic.Player{ID: idCounter, X: 1, Y: 1}
-		// greetMsg := protocol.Message{Type: 0, Data: protocol.Greeting{ID: idCounter}}
-		// greetInBytes, _ := serdes.Serialize(greetMsg)
-		// conn.Write(greetInBytes)
+		match.Players[conn] = &gamelogic.Player{ID: idCounter, X: 1, Y: 1}
+		msg := &protocol.Envelope{
+			Payload: &protocol.Envelope_Greeting{
+				Greeting: &protocol.Greeting{
+					Id: idCounter,
+				},
+			},
+		}
+		netio.SendMessage(conn, msg)
 
 		go func(player_conn net.Conn, handler_c chan<- MsgWrapper) {
 			for {
@@ -92,25 +95,17 @@ func messageHandler(match *gamelogic.GameMatch, c <-chan MsgWrapper) {
 
 			if new_x >= 0 && new_x < int32(len(match.Board[0])) && new_y >= 0 && new_y < int32(len(match.Board)) {
 				if match.Board[new_y][new_x] == gamelogic.EmptyTile {
-					payload := &protocol.Envelope_PlayerMovement{
-						PlayerMovement: &protocol.PlayerMovement{
-							Id: player.ID,
-							X:  new_x,
-							Y:  new_y,
+					msg := &protocol.Envelope{
+						Payload: &protocol.Envelope_PlayerMovement{
+							PlayerMovement: &protocol.PlayerMovement{
+								Id: player.ID,
+								X:  new_x,
+								Y:  new_y,
+							},
 						},
 					}
-					msg := protocol.Envelope{
-						Payload: payload,
-					}
 
-					if bytes, err := proto.Marshal(&msg); err == nil {
-						headBuf := make([]byte, 4)
-						binary.BigEndian.PutUint32(headBuf, uint32(len(bytes)))
-
-						send := append(headBuf, bytes...)
-
-						conn.Write(send)
-					}
+					netio.SendMessage(conn, msg)
 				}
 			}
 		}

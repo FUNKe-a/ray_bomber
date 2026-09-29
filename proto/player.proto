@@ -6,11 +6,11 @@ option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;
 
 // server messages
 message Greeting {
-  int32 id = 1;
+  uint32 id = 1;
 }
 
 message PlayerEvent {
-  int32 id = 1;
+  uint32 id = 1;
 
   enum State {
     UNKNOWN = 0;
@@ -22,7 +22,7 @@ message PlayerEvent {
 }
 
 message PlayerMovement {
-  int32 id = 1;
+  uint32 id = 1;
   int32 x = 2;
   int32 y = 3;
 }
