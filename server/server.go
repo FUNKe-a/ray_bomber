@@ -1,5 +1,7 @@
 package main
 
+//go:generate protoc --proto_path=../proto --go_out=internal/protocol --go_opt=paths=source_relative ../proto/player.proto
+
 import (
 	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
