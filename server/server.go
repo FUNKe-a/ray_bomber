@@ -1,6 +1,6 @@
 package main
 
-//go:generate protoc --proto_path=../proto --go_out=internal/gen/protocol --go_opt=paths=source_relative ../proto/player.proto ../proto/envelope.proto
+//go:generate go run scripts/protobuf.go
 
 import (
 	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
@@ -27,18 +27,6 @@ func main() {
 
 	for {
 		conn, _ := ln.Accept()
-
-		// TODO fix problem that idCounter will overfill
-		// if people will join and leave
-		match.Players[conn] = &gamelogic.Player{ID: idCounter, X: 1, Y: 1}
-		msg := &protocol.Envelope{
-			Payload: &protocol.Envelope_Greeting{
-				Greeting: &protocol.Greeting{
-					Id: idCounter,
-				},
-			},
-		}
-		netio.SendMessage(conn, msg)
 
 		go func(player_conn net.Conn, handler_c chan<- MsgWrapper) {
 			for {
