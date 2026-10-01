@@ -37,3 +37,18 @@ Start the server
 ```shell
 go run server.go
 ```
+
+## Development
+
+To generate protobuf code for server use:
+```shell
+cd ./server
+go generate
+```
+
+To generate protobuf code for client use:
+```shell
+cd ./client
+cmake -B build/
+cmake --build build --target proto_files
+```
