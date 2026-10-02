@@ -10,9 +10,15 @@ protobuf_generate(
 		"${PROTO_DIRECTORY}/envelope.proto"
 		"${PROTO_DIRECTORY}/player.proto"
 	IMPORT_DIRS 
-		${PROTO_DIRECTORY}
+		"${PROTO_DIRECTORY}"
 )
 
-target_include_directories(proto_files PUBLIC
-	"${CMAKE_BINARY_DIR}/protocol"
+target_link_libraries(proto_files
+	PUBLIC
+        protobuf::libprotobuf
+)
+
+target_include_directories(proto_files
+	PUBLIC
+		"${CMAKE_BINARY_DIR}/protocol"
 )
