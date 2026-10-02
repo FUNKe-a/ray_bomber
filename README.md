@@ -20,6 +20,12 @@ git clone https://github.com/microsoft/vcpkg.git C:\dev\vcpkg
 & C:\dev\vcpkg\bootstrap-vcpkg.bat
 & C:\dev\vcpkg\vcpkg.exe install protobuf:x64-windows
 ```
+### Server code-generation tools
+
+Install the Go generator:
+```shell
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+```
 
 ## Building the client
 
@@ -50,30 +56,20 @@ Start the client via the compiled binary.
 ./bin/Linux/Debug/ray_bomber
 ```
 
-## Server code-generation tools
-
-Install the Go generator:
-```shell
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-protoc --version
-protoc-gen-go --version
-```
-
 ## Building the server
 
 ### Windows and Linux
 
-Generate code from the .proto files
 ```shell
 cd server
 go mod download
-go generate ./...
-go run .
+go generate
+go run server.go
 ```
 
 ## Development
 
-# Windows
+### Windows
 
 To generate protobuf code for server use:
 ```shell
@@ -88,7 +84,7 @@ cmake --preset windows-vcpkg
 cmake --build --preset debug
 ```
 
-# Linux
+### Linux
 
 To generate protobuf code for server use:
 ```shell
