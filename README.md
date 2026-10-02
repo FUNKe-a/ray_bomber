@@ -7,10 +7,35 @@ A multiplayer bomberman remake.
 * Go 1.26
 * CMake 4.3
 * protobuf compiler with go plugin
+* vcpkg and Visual Studio 2026 (on Windows)
+
+## Initial setup
+
+### Windows client dependencies
+
+Run these commands in PowerShell to install vcpkg and Protobuf. Skip cloning and bootstrapping if you already have vcpkg installed.
+
+```powershell
+git clone https://github.com/microsoft/vcpkg.git C:\dev\vcpkg
+& C:\dev\vcpkg\bootstrap-vcpkg.bat
+& C:\dev\vcpkg\vcpkg.exe install protobuf:x64-windows
+```
 
 ## Building the client
 
-Navigate to the server directory.
+### Windows
+
+Configure, build, and launch from PowerShell:
+```powershell
+cd client
+cmake --preset windows-vcpkg
+cmake --build --preset debug
+.\bin\Windows\Debug\ray_bomber.exe
+```
+
+### Linux
+
+Navigate to the client directory.
 ```shell
 cd client
 ```
@@ -22,23 +47,48 @@ cmake --build build
 
 Start the client via the compiled binary.
 ```shell
-cd ./bin
+./bin/Linux/Debug/ray_bomber
+```
+
+## Server code-generation tools
+
+Install the Go generator:
+```shell
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+protoc --version
+protoc-gen-go --version
 ```
 
 ## Building the server
 
+### Windows and Linux
+
 Generate code from the .proto files
+```shell
+cd server
+go mod download
+go generate ./...
+go run .
+```
+
+## Development
+
+# Windows
+
+To generate protobuf code for server use:
 ```shell
 cd ./server
 go generate
 ```
 
-Start the server
+To generate protobuf code for client use:
 ```shell
-go run server.go
+cd ./client
+cmake --preset windows-vcpkg
+cmake --build --preset debug
 ```
 
-## Development
+# Linux
 
 To generate protobuf code for server use:
 ```shell
