@@ -7,7 +7,7 @@ option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;
 message Envelope {
   oneof payload {
     // player
-    player.JoinLobby join_lobby = 1;
+    player.JoinLobbyRequest join_lobby_request = 1;
     player.UpdateReadyState update_ready_state = 2;
     player.MoveRequest move_request = 3;
 

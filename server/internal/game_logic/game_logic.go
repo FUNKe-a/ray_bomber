@@ -1,15 +1,32 @@
 package gamelogic
 
-import "net"
+import (
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	"log/slog"
+	"net"
+)
 
 const (
 	EmptyTile = iota
 	WallTile
 )
 
+const (
+	tilePrefix uint32 = 19
+)
+
+var availableColors = []protocol.Color{
+	protocol.Color_RED,
+	protocol.Color_GREEN,
+	protocol.Color_BLUE,
+	protocol.Color_YELLOW,
+}
+
 type Player struct {
-	ID   uint32
-	X, Y int32
+	ID       uint32
+	Username string
+	X, Y     int32
+	Color    protocol.Color
 }
 
 // 20 values are reserved for tile types
@@ -17,7 +34,46 @@ type Player struct {
 type GameMatch struct {
 	Players map[net.Conn]*Player
 	Board   [][]uint8
-	IdCount uint8
+	IDCount uint8
+}
+
+func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, protocol.Color) {
+	if player, exists := match.Players[p_conn]; exists {
+		slog.Debug("Player already added to match.")
+		return player.ID, player.Color
+	}
+
+	for _, color := range availableColors {
+		isTaken := false
+
+		for _, player := range match.Players {
+			if player.Color == color {
+				isTaken = true
+				break
+			}
+		}
+
+		if isTaken == false {
+			playerID := tilePrefix + uint32(color)
+			match.Players[p_conn] = &Player{
+				ID:       playerID,
+				Username: username,
+				X:        0,
+				Y:        0,
+				Color:    color,
+			}
+			return playerID, color
+		}
+	}
+
+	return 0, 0
+}
+
+func (match *GameMatch) IsFull(p_conn net.Conn) bool {
+	if len(match.Players) >= 4 {
+		return true
+	}
+	return false
 }
 
 func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
@@ -26,7 +82,7 @@ func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
 	// 	board[i] = make([]uint8, sizeX)
 	// }
 
-	board := [13][15]uint8 {
+	board := [13][15]uint8{
 		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 		{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
 		{1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1},
@@ -43,15 +99,9 @@ func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
 	}
 
 	slice := make([][]uint8, len(board))
-    for i := range board {
-        slice[i] = board[i][:] 
-    }
-
-	return GameMatch{Players: make(map[net.Conn]*Player), Board: slice, IdCount: 20}
-}
-
-func (board *GameMatch) Broadcast(data []byte) {
-	for k := range board.Players {
-		k.Write(data)
+	for i := range board {
+		slice[i] = board[i][:]
 	}
+
+	return GameMatch{Players: make(map[net.Conn]*Player), Board: slice, IDCount: 20}
 }

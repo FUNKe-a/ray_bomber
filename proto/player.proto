@@ -15,7 +15,7 @@ enum Color {
 
 // server messages
 message PlayerJoined {
-  string name = 2;
+  string username = 2;
   Color color = 3;
 }
 
@@ -49,8 +49,8 @@ message PlayerMovement {
 }
 
 // player messages
-message JoinLobby {
-  string name = 1;
+message JoinLobbyRequest {
+  string username = 1;
 }
 
 message UpdateReadyState {
