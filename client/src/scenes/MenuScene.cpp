@@ -41,9 +41,17 @@ namespace
     {
         return {
             (ScreenWidth - ButtonWidth) / 2.0f,
-            330.0f,
+            430.0f,
             static_cast<float>(ButtonWidth),
             static_cast<float>(ButtonHeight)
+        };
+    }
+
+    Rectangle nameRectangle()
+    {
+        return {
+            (ScreenWidth - InputWidth) / 2.0f, 335.0f,
+            static_cast<float>(InputWidth), static_cast<float>(InputHeight)
         };
     }
 }
@@ -57,12 +65,14 @@ MenuScene::MenuScene(
     Client& client,
     std::string serverAddress,
     std::string port,
-    std::string errorMessage
+    std::string errorMessage,
+    std::string playerName
 )
     : client(client),
       serverAddress(std::move(serverAddress)),
       port(std::move(port)),
-      errorMessage(std::move(errorMessage))
+      errorMessage(std::move(errorMessage)),
+      playerName(std::move(playerName))
 {
 }
 
@@ -72,6 +82,7 @@ std::unique_ptr<ApplicationState> MenuScene::update()
     const Rectangle addressRect = serverAddressRectangle();
     const Rectangle portRect = portRectangle();
     const Rectangle buttonRect = connectButtonRectangle();
+    const Rectangle nameRect = nameRectangle();
 
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
     {
@@ -82,6 +93,10 @@ std::unique_ptr<ApplicationState> MenuScene::update()
         else if (CheckCollisionPointRec(mousePosition, portRect))
         {
             activeField = InputField::Port;
+        }
+        else if (CheckCollisionPointRec(mousePosition, nameRect))
+        {
+            activeField = InputField::PlayerName;
         }
     }
 
@@ -103,7 +118,8 @@ std::unique_ptr<ApplicationState> MenuScene::update()
     return std::make_unique<ConnectingScene>(
         client,
         serverAddress,
-        port
+        port,
+        playerName
     );
 }
 
@@ -128,6 +144,12 @@ void MenuScene::handleTextInput()
                 serverAddress += static_cast<char>(character);
             }
         }
+        else if (activeField == InputField::PlayerName)
+        {
+            // Initial UI accepts printable ASCII, which is valid UTF-8.
+            if (character >= 32 && character <= 126 && playerName.size() < 32)
+                playerName += static_cast<char>(character);
+        }
         else if (character >= '0' &&
                  character <= '9' &&
                  port.size() < 5)
@@ -145,7 +167,7 @@ void MenuScene::handleTextInput()
 
     std::string& value = activeField == InputField::ServerAddress
         ? serverAddress
-        : port;
+        : activeField == InputField::Port ? port : playerName;
 
     if (!value.empty())
     {
@@ -155,6 +177,11 @@ void MenuScene::handleTextInput()
 
 bool MenuScene::validateConnectionDetails()
 {
+    if (playerName.empty() || playerName.find_first_not_of(' ') == std::string::npos)
+    {
+        errorMessage = "Enter a player name.";
+        return false;
+    }
     if (serverAddress.empty())
     {
         errorMessage = "Enter a server address.";
@@ -225,6 +252,15 @@ void MenuScene::render() const
     DrawRectangleRec(addressRect, LIGHTGRAY);
     DrawRectangleRec(portRect, LIGHTGRAY);
 
+    const Rectangle nameRect = nameRectangle();
+    DrawText("Player Name", static_cast<int>(nameRect.x),
+             static_cast<int>(nameRect.y) - 28, 20, GRAY);
+    DrawRectangleRec(nameRect, LIGHTGRAY);
+    DrawRectangleLinesEx(nameRect, 2.0f,
+        activeField == InputField::PlayerName ? BLUE : GRAY);
+    DrawText(playerName.c_str(), static_cast<int>(nameRect.x) + 15,
+             static_cast<int>(nameRect.y) + 14, 20, DARKGRAY);
+
     DrawRectangleLinesEx(
         addressRect,
         2.0f,
@@ -279,7 +315,7 @@ void MenuScene::render() const
             errorMessage.c_str(),
             ScreenWidth / 2 -
                 MeasureText(errorMessage.c_str(), 20) / 2,
-            405,
+            515,
             20,
             RED
         );

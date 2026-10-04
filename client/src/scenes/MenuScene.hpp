@@ -16,7 +16,8 @@ public:
         Client& client,
         std::string serverAddress,
         std::string port,
-        std::string errorMessage
+        std::string errorMessage,
+        std::string playerName = "Player"
     );
 
     std::unique_ptr<ApplicationState> update() override;
@@ -26,7 +27,8 @@ private:
     enum class InputField
     {
         ServerAddress,
-        Port
+        Port,
+        PlayerName
     };
 
     void handleTextInput();
@@ -36,5 +38,6 @@ private:
     std::string serverAddress;
     std::string port;
     std::string errorMessage;
+    std::string playerName;
     InputField activeField = InputField::ServerAddress;
 };

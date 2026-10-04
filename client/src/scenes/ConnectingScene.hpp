@@ -13,7 +13,8 @@ public:
     ConnectingScene(
         Client& client,
         std::string serverAddress,
-        std::string port
+        std::string port,
+        std::string playerName
     );
 
     std::unique_ptr<ApplicationState> update() override;
@@ -23,4 +24,5 @@ private:
     Client& client;
     std::string serverAddress;
     std::string port;
+    std::string playerName;
 };

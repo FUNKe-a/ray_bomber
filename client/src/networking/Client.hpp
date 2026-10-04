@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Protocol.hpp"
-
 #include <asio.hpp>
 
 #include <array>
@@ -14,75 +13,46 @@
 class Client
 {
 public:
-    enum class ConnectionState
-    {
-        Disconnected,
-        Connecting,
-        Connected,
-        Failed
-    };
+    enum class ConnectionState { Disconnected, Connecting, Connected, Failed };
 
-    Client();
-
-    void connect(
-        const std::string& address,
-        std::uint16_t port
-    );
-
+    Client() = default;
+    ~Client();
+    void connect(const std::string& address, std::uint16_t port);
     void poll();
-
     void startReceiving();
-
     void disconnect();
-
     ConnectionState getConnectionState() const;
-
     bool isConnected() const;
-
     const std::string& getError() const;
-
-    bool receive(Protocol::Message& message);
-
-    void send(const Protocol::Message& message);
+    bool receive(Envelope& message);
+    void send(const Envelope& message);
 
 private:
-    void handleConnect(
-        const asio::error_code& error,
-        const asio::ip::tcp::endpoint& endpoint
-    );
+    // Each connection owns its async buffers. Cancelled callbacks retain the
+    // old session, so reconnecting cannot reuse a buffer still owned by Asio.
+    struct Session
+    {
+        explicit Session(asio::io_context& context)
+            : socket(context), resolver(context) {}
+        asio::ip::tcp::socket socket;
+        asio::ip::tcp::resolver resolver;
+        std::array<std::uint8_t, Protocol::HeaderSize> header{};
+        std::vector<std::uint8_t> body;
+        std::deque<std::shared_ptr<std::vector<std::uint8_t>>> outgoing;
+        bool writing = false;
+        bool receiving = false;
+    };
 
-    void readHeader();
-
-    void handleReadHeader(
-        const asio::error_code& error,
-        std::size_t bytesTransferred
-    );
-
-    void readBody();
-
-    void handleReadBody(
-        const asio::error_code& error,
-        std::size_t bytesTransferred
-    );
-
-    void writeNext();
-
-    void handleWrite(
-        const asio::error_code& error,
-        std::size_t bytesTransferred
-    );
+    void readHeader(const std::shared_ptr<Session>& current);
+    void readBody(const std::shared_ptr<Session>& current);
+    void writeNext(const std::shared_ptr<Session>& current);
+    void fail(const std::shared_ptr<Session>& current, std::string error);
+    static void close(const std::shared_ptr<Session>& current);
 
     asio::io_context ioContext;
-    asio::ip::tcp::socket socket;
-    asio::ip::tcp::resolver resolver;
-    
+    std::shared_ptr<Session> session;
+    std::deque<Envelope> incomingMessages;
     ConnectionState connectionState = ConnectionState::Disconnected;
     std::string errorMessage;
-    std::deque<Protocol::Message> incomingMessages;
-    std::array<std::uint8_t, 3> readHeaderBuffer{};
-    std::vector<std::uint8_t> readBodyBuffer;
-    std::deque<std::shared_ptr<std::vector<std::uint8_t>>>
-        outgoingMessages;
-
-    bool writing = false;
+    static constexpr std::size_t MaxQueuedMessages = 256;
 };

@@ -38,8 +38,6 @@ target_link_libraries(ray_bomber
     raylib
     game_logic
     networking
-	proto_files
-	protobuf::libprotobuf
 )
 
 

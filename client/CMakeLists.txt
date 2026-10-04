@@ -5,8 +5,6 @@ project(ray_bomber
   LANGUAGES CXX
 )
 
-find_package(Protobuf REQUIRED)
-
 include(cmake/options.cmake)
 include(cmake/fetch.cmake)
 include(cmake/generate.cmake)
