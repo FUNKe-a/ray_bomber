@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package player;
+
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+// common types
+enum Color {
+  UNKNOWN = 0;
+  RED = 1;
+  GREEN = 2;
+  BLUE = 3;
+  YELLOW = 4;
+}
+
+// server messages
+message PlayerJoined {
+  string name = 2;
+  Color color = 3;
+}
+
+message PlayerLeft {
+  string reason = 1;
+}
+
+message PlayerReady {
+ bool is_ready = 1;
+}
+
+message PlayerEvent {
+  uint32 id = 1;
+
+  oneof event_type {
+    PlayerJoined joined = 2;
+    PlayerLeft left = 3;
+    PlayerReady ready = 4;
+  }
+}
+
+message JoinLobbyResponse {
+  uint32 id = 1;
+  Color color = 3;
+}
+
+message PlayerMovement {
+  uint32 id = 1;
+  int32 x = 2;
+  int32 y = 3;
+}
+
+// player messages
+message JoinLobby {
+  string name = 1;
+}
+
+message UpdateReadyState {
+  bool is_ready = 1;
+}
+
+message MoveRequest {
+  enum Direction {
+    UNKNOWN = 0;
+    UP = 1;
+    RIGHT = 2;
+    DOWN = 3;
+    LEFT = 4;
+  }
+
+  Direction direction = 1;
+}

@@ -25,6 +25,8 @@ int Application::run()
 
     state = std::make_unique<MenuScene>(client);
 
+    SetExitKey(KEY_NULL);
+
     while (!WindowShouldClose())
     {
         client.poll();

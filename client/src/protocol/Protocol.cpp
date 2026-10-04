@@ -1,102 +1,82 @@
 #include "Protocol.hpp"
 
 #include <stdexcept>
+#include <utility>
 
-namespace Protocol
+Envelope Protocol::createJoinLobbyRequest(const std::string& name)
 {
-    std::vector<std::uint8_t> serialize(const Message& message)
+    Envelope message;
+    message.mutable_join_lobby()->set_name(name);
+    return message;
+}
+
+Envelope Protocol::createReadyRequest(bool ready)
+{
+    Envelope message;
+    message.mutable_update_ready_state()->set_is_ready(ready);
+    return message;
+}
+
+Envelope Protocol::createMoveRequest(player::MoveRequest::Direction direction)
+{
+    if (direction != player::MoveRequest::UP &&
+        direction != player::MoveRequest::RIGHT &&
+        direction != player::MoveRequest::DOWN &&
+        direction != player::MoveRequest::LEFT)
+        throw std::invalid_argument("Invalid movement direction.");
+
+    Envelope message;
+    message.mutable_move_request()->set_direction(direction);
+    return message;
+}
+
+std::vector<std::uint8_t> Protocol::serialize(const Envelope& message)
+{
+    if (message.payload_case() == Envelope::PAYLOAD_NOT_SET)
+        throw std::invalid_argument("Envelope has no payload.");
+    if (message.ByteSizeLong() > MaxBodySize)
+        throw std::runtime_error("Envelope exceeds frame limit.");
+
+    std::string body;
+    if (!message.SerializeToString(&body))
+        throw std::runtime_error("Could not serialize envelope.");
+    return frameBody(body);
+}
+
+bool Protocol::deserialize(
+    std::span<const std::uint8_t> body, Envelope& message)
+{
+    if (body.empty() || body.size() > MaxBodySize)
+        return false;
+    Envelope parsed;
+    if (!parsed.ParseFromArray(body.data(), static_cast<int>(body.size())) ||
+        parsed.payload_case() == Envelope::PAYLOAD_NOT_SET)
+        return false;
+    message = std::move(parsed);
+    return true;
+}
+
+bool Protocol::isServerMessage(const Envelope& message)
+{
+    switch (message.payload_case())
     {
-        const std::uint16_t bodyLength =
-            static_cast<std::uint16_t>(message.body.size());
-
-        std::vector<std::uint8_t> packet;
-
-        packet.reserve(3 + bodyLength);
-
-        packet.push_back(
-            static_cast<std::uint8_t>(message.type)
-        );
-
-        packet.push_back(
-            static_cast<std::uint8_t>(bodyLength >> 8)
-        );
-
-        packet.push_back(
-            static_cast<std::uint8_t>(bodyLength & 0xFF)
-        );
-
-        packet.insert(
-            packet.end(),
-            message.body.begin(),
-            message.body.end()
-        );
-
-        return packet;
-    }
-
-    Message createMoveRequest(Direction direction)
-    {
-        return Message{
-            MessageType::MoveRequested,
+        case Envelope::kJoinLobbyResponse:
+            return player::Color_IsValid(message.join_lobby_response().color());
+        case Envelope::kPlayerEvent:
+            switch (message.player_event().event_type_case())
             {
-                static_cast<std::uint8_t>(direction)
+                case player::PlayerEvent::kJoined:
+                    return player::Color_IsValid(
+                        message.player_event().joined().color());
+                case player::PlayerEvent::kLeft:
+                case player::PlayerEvent::kReady:
+                    return true;
+                default:
+                    return false;
             }
-        };
-    }
-
-    Greeting deserializeGreeting(const Message& message)
-    {
-        if (message.type != MessageType::Greeting ||
-            message.body.size() != 1)
-        {
-            throw std::runtime_error("Invalid Greeting message");
-        }
-
-        return Greeting{
-            message.body[0]
-        };
-    }
-
-    PlayerJoined deserializePlayerJoined(const Message& message)
-    {
-        if (message.type != MessageType::PlayerJoined ||
-            message.body.size() != 3)
-        {
-            throw std::runtime_error("Invalid PlayerJoined message");
-        }
-
-        return PlayerJoined{
-            message.body[0],
-            message.body[1],
-            message.body[2]
-        };
-    }
-
-    PlayerLeft deserializePlayerLeft(const Message& message)
-    {
-        if (message.type != MessageType::PlayerLeft ||
-            message.body.size() != 1)
-        {
-            throw std::runtime_error("Invalid PlayerLeft message");
-        }
-
-        return PlayerLeft{
-            message.body[0]
-        };
-    }
-
-    PlayerMoved deserializePlayerMoved(const Message& message)
-    {
-        if (message.type != MessageType::PlayerMoved ||
-            message.body.size() != 3)
-        {
-            throw std::runtime_error("Invalid PlayerMoved message");
-        }
-
-        return PlayerMoved{
-            message.body[0],
-            message.body[1],
-            message.body[2]
-        };
+        case Envelope::kPlayerMovement:
+            return true;
+        default:
+            return false;
     }
 }

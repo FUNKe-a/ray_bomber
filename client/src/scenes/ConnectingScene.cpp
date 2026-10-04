@@ -12,11 +12,13 @@
 ConnectingScene::ConnectingScene(
     Client& client,
     std::string serverAddress,
-    std::string port
+    std::string port,
+    std::string playerName
 )
     : client(client),
       serverAddress(std::move(serverAddress)),
-      port(std::move(port))
+      port(std::move(port)),
+      playerName(std::move(playerName))
 {
 }
 
@@ -25,10 +27,12 @@ std::unique_ptr<ApplicationState> ConnectingScene::update()
     if (client.isConnected())
     {
         client.startReceiving();
+        client.send(Protocol::createJoinLobbyRequest(playerName));
         return std::make_unique<PlayingScene>(
             client, 
             std::move(serverAddress),
-            std::move(port)    
+            std::move(port),
+            std::move(playerName)
         );
     }
 
@@ -38,7 +42,8 @@ std::unique_ptr<ApplicationState> ConnectingScene::update()
             client,
             std::move(serverAddress),
             std::move(port),
-            client.getError()
+            client.getError(),
+            std::move(playerName)
         );
     }
 

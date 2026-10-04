@@ -2,44 +2,31 @@
 
 #include "Map.hpp"
 #include "Player.hpp"
-#include "Protocol.hpp"
-
+#include "envelope.pb.h"
 #include <cstdint>
+#include <string>
 #include <unordered_map>
-
-enum class Direction
-{
-    Up,
-    Down,
-    Left,
-    Right
-};
 
 class Game
 {
 public:
-    Game();
-
-    void handleMessage(const Protocol::Message& message);
-
+    explicit Game(std::string localName = "Player");
+    void handleMessage(const Envelope& message);
     const Map& getMap() const;
-
-    const std::unordered_map<std::uint8_t, Player>& getPlayers() const;
-    
-    const Player* getPlayer(std::uint8_t id) const;
+    const std::unordered_map<std::uint32_t, Player>& getPlayers() const;
+    const Player* getPlayer(std::uint32_t id) const;
     const Player* getLocalPlayer() const;
-    
-    std::uint8_t getLocalPlayerId() const;
+    std::uint32_t getLocalPlayerId() const;
+    bool hasJoinedLobby() const;
 
 private:
-    void handleGreeting(const Protocol::Message& message);
-    void handlePlayerJoined(const Protocol::Message& message);
-    void handlePlayerLeft(const Protocol::Message& message);
-    void handlePlayerMoved(const Protocol::Message& message);
-
+    Player& ensurePlayer(std::uint32_t id);
+    void handleJoinResponse(const player::JoinLobbyResponse& response);
+    void handlePlayerEvent(const player::PlayerEvent& event);
+    void handleMovement(const player::PlayerMovement& movement);
     Map map;
-    std::unordered_map<std::uint8_t, Player> players;
-
-    std::uint8_t localPlayerId = 0;
-    bool hasLocalPlayerId = false;
+    std::unordered_map<std::uint32_t, Player> players;
+    std::string localName;
+    std::uint32_t localPlayerId = 0;
+    bool joinedLobby = false;
 };

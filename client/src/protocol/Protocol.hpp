@@ -1,71 +1,20 @@
 #pragma once
 
+#include "envelope.pb.h"
+#include "Frame.hpp"
+
 #include <cstdint>
+#include <span>
+#include <string>
 #include <vector>
 
 namespace Protocol
 {
-    enum class MessageType : std::uint8_t
-    {
-        Greeting = 0,
-        PlayerJoined = 1,
-        PlayerLeft = 2,
-        MoveRequested = 3,
-        PlayerMoved = 4
-    };
+    Envelope createJoinLobbyRequest(const std::string& name);
+    Envelope createReadyRequest(bool ready);
+    Envelope createMoveRequest(player::MoveRequest::Direction direction);
 
-    enum class Direction : std::uint8_t
-    {
-        Up = 0,
-        Down = 1,
-        Left = 2,
-        Right = 3
-    };
-
-    struct Message
-    {
-        MessageType type;
-        std::vector<std::uint8_t> body;
-    };
-
-    struct Greeting
-    {
-        std::uint8_t id;
-    };
-
-    struct PlayerJoined
-    {
-        std::uint8_t id;
-        std::uint8_t startX;
-        std::uint8_t startY;
-    };
-
-    struct PlayerLeft
-    {
-        std::uint8_t id;
-    };
-
-    struct MoveRequested
-    {
-        Direction direction;
-    };
-
-    struct PlayerMoved
-    {
-        std::uint8_t id;
-        std::uint8_t x;
-        std::uint8_t y;
-    };
-
-    std::vector<std::uint8_t> serialize(const Message& message);
-
-    Message createMoveRequest(Direction direction);
-
-    Greeting deserializeGreeting(const Message& message);
-
-    PlayerJoined deserializePlayerJoined(const Message& message);
-
-    PlayerLeft deserializePlayerLeft(const Message& message);
-
-    PlayerMoved deserializePlayerMoved(const Message& message);
+    std::vector<std::uint8_t> serialize(const Envelope& message);
+    bool deserialize(std::span<const std::uint8_t> body, Envelope& message);
+    bool isServerMessage(const Envelope& message);
 }

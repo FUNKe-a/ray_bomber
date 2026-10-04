@@ -2,33 +2,40 @@ package netio
 
 import (
 	"encoding/binary"
-	"github.com/FUNKe-a/ray_bomber/server/internal/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/serdes"
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
 )
 
-func ReadAndDeserialize(conn net.Conn) (protocol.Message, error) {
-	if msg_type, msg_body, err := ReadMessage(conn); err == nil {
-		return serdes.Deserialize(msg_type, msg_body)
+func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
+	headBuf := make([]byte, 4)
+
+	if _, err := io.ReadFull(conn, headBuf); err != nil {
+		return err
 	}
 
-	return protocol.Message{}, nil
+	length := binary.BigEndian.Uint32(headBuf)
+
+	dataBuf := make([]byte, length)
+	if _, err := io.ReadFull(conn, dataBuf); err != nil {
+		return err
+	}
+
+	return proto.Unmarshal(dataBuf, envelope)
 }
 
-func ReadMessage(conn net.Conn) (uint8, []byte, error) {
-	headBuffer := make([]byte, 3)
-	if _, err := io.ReadFull(conn, headBuffer); err != nil {
-		return 0, nil, err
+func SendMessage(conn net.Conn, envelope *protocol.Envelope) error {
+	bytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return err
 	}
 
-	msgType := headBuffer[0]
-	msgLength := binary.BigEndian.Uint16(headBuffer[1:3])
+	headBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(headBuf, uint32(len(bytes)))
 
-	bodyBuffer := make([]byte, msgLength)
-	if _, err := io.ReadFull(conn, bodyBuffer); err != nil {
-		return 0, nil, err
-	}
+	packet := append(headBuf, bytes...)
 
-	return msgType, bodyBuffer, nil
+	_, err = conn.Write(packet)
+	return err
 }

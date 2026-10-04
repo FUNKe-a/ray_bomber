@@ -14,7 +14,8 @@ public:
     explicit PlayingScene(
         Client& client,
         std::string serverAddress,
-        std::string port    
+        std::string port,
+        std::string playerName
     );
 
     std::unique_ptr<ApplicationState> update() override;
@@ -26,10 +27,13 @@ private:
     void drawMap(const Map& map) const;
     void drawPlayers() const;
     void drawPlayer(const Player& player, bool isLocalPlayer) const;
+    void drawLobby() const;
 
     Client& client;
     Game game;
 
     std::string serverAddress;
     std::string port;
+    std::string playerName;
+    double joinStartedAt = 0.0;
 };
