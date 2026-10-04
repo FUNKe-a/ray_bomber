@@ -22,10 +22,7 @@ func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
 		return err
 	}
 
-	var msg protocol.Envelope;
-	err := proto.Unmarshal(dataBuf, &msg)
-
-	return err
+	return proto.Unmarshal(dataBuf, envelope)
 }
 
 func SendMessage(conn net.Conn, envelope *protocol.Envelope) error {
