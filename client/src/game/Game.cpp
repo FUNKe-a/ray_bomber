@@ -36,7 +36,7 @@ void Game::handleJoinResponse(const player::JoinLobbyResponse& response)
     // Do not replace a name already supplied by a server join event.
     if (participant.getName().empty()) participant.setName(localName);
     participant.setColor(response.color());
-    std::cout << "Joined lobby as player " << localPlayerId << '\n';
+    std::cout << "Received JoinLobbyResponse as player " << localName << " with id " << localPlayerId << '\n';
 }
 
 void Game::handlePlayerEvent(const player::PlayerEvent& event)
@@ -46,12 +46,14 @@ void Game::handlePlayerEvent(const player::PlayerEvent& event)
         case player::PlayerEvent::kJoined:
         {
             auto& participant = ensurePlayer(event.id());
-            participant.setName(event.joined().name());
+            participant.setName(event.joined().username());
             participant.setColor(event.joined().color());
+            std::cout << "Received PlayerEvent kJoined as player " << participant.getName() << " and id " << participant.getId() << '\n';
             break;
         }
         case player::PlayerEvent::kReady:
             ensurePlayer(event.id()).setReady(event.ready().is_ready());
+            std::cout << "Received PlayerEvent kReady with id " << event.id() << '\n';
             break;
         case player::PlayerEvent::kLeft:
             players.erase(event.id());

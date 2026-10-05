@@ -28,6 +28,7 @@ std::unique_ptr<ApplicationState> ConnectingScene::update()
     {
         client.startReceiving();
         client.send(Protocol::createJoinLobbyRequest(playerName));
+        std::cout << "Sent a JoinlobbyRequest with name " << playerName << std::endl;
         return std::make_unique<PlayingScene>(
             client, 
             std::move(serverAddress),

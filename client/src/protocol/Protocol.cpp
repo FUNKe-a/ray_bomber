@@ -6,7 +6,7 @@
 Envelope Protocol::createJoinLobbyRequest(const std::string& name)
 {
     Envelope message;
-    message.mutable_join_lobby()->set_name(name);
+    message.mutable_join_lobby_request()->set_username(name);
     return message;
 }
 

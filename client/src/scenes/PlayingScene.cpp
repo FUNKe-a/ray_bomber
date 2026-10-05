@@ -86,8 +86,10 @@ std::unique_ptr<ApplicationState> PlayingScene::update()
     // Only send gameplay/lobby requests after the join response.
     if (!game.hasJoinedLobby()) return nullptr;
     const Player* localPlayer = game.getLocalPlayer();
-    if (localPlayer && IsKeyPressed(KEY_R))
+    if (localPlayer && IsKeyPressed(KEY_R)){
         client.send(Protocol::createReadyRequest(!localPlayer->isReady()));
+        std::cout << "Sent a createReadyRequest" << std::endl;
+    }
 
     // Arrow keys remain available for the existing movement demo. There is
     // no match-start/phase message in these schemas yet.
@@ -190,7 +192,7 @@ void PlayingScene::drawLobby() const
     DrawRectangle(8, 8, 460, 52 + static_cast<int>(game.getPlayers().size()) * 24,
                   RAYWHITE);
     DrawText(game.hasJoinedLobby() ? "Lobby: R toggles ready | Arrows move"
-                                 : "Joining lobby...", 18, 14, 18, DARKGRAY);
+                                 : "Joining lobby...", 18, 14, 20, DARKGRAY);
     // Stable presentation order despite the model using an unordered map.
     std::vector<std::uint32_t> ids;
     for (const auto& [id, participant] : game.getPlayers())
@@ -208,7 +210,7 @@ void PlayingScene::drawLobby() const
         const std::string label = name +
             (game.hasJoinedLobby() && id == game.getLocalPlayerId() ? " (you)" : "") +
             (participant->isReady() ? " - READY" : " - not ready");
-        DrawText(label.c_str(), 18, y, 18,
+        DrawText(label.c_str(), 18, y, 20,
                  participant->isReady() ? DARKGREEN : DARKGRAY);
         y += 24;
     }

@@ -109,7 +109,7 @@ void Client::send(const Envelope& message)
     if (!isConnected() || !session) return;
     switch (message.payload_case())
     {
-        case Envelope::kJoinLobby:
+        case Envelope::kJoinLobbyRequest:
         case Envelope::kUpdateReadyState:
         case Envelope::kMoveRequest:
             break;
