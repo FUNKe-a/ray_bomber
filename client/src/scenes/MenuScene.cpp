@@ -76,7 +76,7 @@ MenuScene::MenuScene(
 {
 }
 
-std::unique_ptr<ApplicationState> MenuScene::update()
+std::unique_ptr<Scene> MenuScene::update()
 {
     const Vector2 mousePosition = GetMousePosition();
     const Rectangle addressRect = serverAddressRectangle();

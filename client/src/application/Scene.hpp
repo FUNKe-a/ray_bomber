@@ -2,13 +2,13 @@
 
 #include <memory>
 
-class ApplicationState
+class Scene
 {
 public:
-    virtual ~ApplicationState() = default;
+    virtual ~Scene() = default;
 
     // A null result keeps the current state. A non-null result becomes the
     // active state after the current frame has rendered.
-    virtual std::unique_ptr<ApplicationState> update() = 0;
+    virtual std::unique_ptr<Scene> update() = 0;
     virtual void render() const = 0;
 };

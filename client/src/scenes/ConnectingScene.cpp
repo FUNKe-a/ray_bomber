@@ -22,7 +22,7 @@ ConnectingScene::ConnectingScene(
 {
 }
 
-std::unique_ptr<ApplicationState> ConnectingScene::update()
+std::unique_ptr<Scene> ConnectingScene::update()
 {
     if (client.isConnected())
     {

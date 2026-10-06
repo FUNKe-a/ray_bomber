@@ -14,7 +14,7 @@ target_sources(ray_bomber
   PRIVATE
     Application.cpp
     main.cpp
-    application/ApplicationState.hpp
+    application/Scene.hpp
     scenes/ConnectingScene.cpp
     scenes/ConnectingScene.hpp
     scenes/MenuScene.cpp

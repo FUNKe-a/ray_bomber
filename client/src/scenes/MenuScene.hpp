@@ -1,13 +1,13 @@
 #pragma once
 
-#include "ApplicationState.hpp"
+#include "Scene.hpp"
 
 #include <memory>
 #include <string>
 
 class Client;
 
-class MenuScene final : public ApplicationState
+class MenuScene final : public Scene
 {
 public:
     explicit MenuScene(Client& client);
@@ -20,7 +20,7 @@ public:
         std::string playerName = "Player"
     );
 
-    std::unique_ptr<ApplicationState> update() override;
+    std::unique_ptr<Scene> update() override;
     void render() const override;
 
 private:

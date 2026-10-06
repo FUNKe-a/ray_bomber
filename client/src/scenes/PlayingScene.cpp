@@ -54,7 +54,7 @@ PlayingScene::PlayingScene(
 {
 }
 
-std::unique_ptr<ApplicationState> PlayingScene::update()
+std::unique_ptr<Scene> PlayingScene::update()
 {
     // receive messages
     Envelope message;

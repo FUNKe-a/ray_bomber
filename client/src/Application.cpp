@@ -1,6 +1,6 @@
 #include "Application.hpp"
 
-#include "application/ApplicationState.hpp"
+#include "application/Scene.hpp"
 #include "scenes/MenuScene.hpp"
 
 #include <raylib.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ApplicationState.hpp"
+#include "Scene.hpp"
 #include "Game.hpp"
 
 #include <memory>
@@ -8,7 +8,7 @@
 
 class Client;
 
-class PlayingScene final : public ApplicationState
+class PlayingScene final : public Scene
 {
 public:
     explicit PlayingScene(
@@ -18,7 +18,7 @@ public:
         std::string playerName
     );
 
-    std::unique_ptr<ApplicationState> update() override;
+    std::unique_ptr<Scene> update() override;
     void render() const override;
 
 private:

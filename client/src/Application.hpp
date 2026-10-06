@@ -4,7 +4,7 @@
 
 #include <memory>
 
-class ApplicationState;
+class Scene;
 
 class Application
 {
@@ -19,5 +19,5 @@ public:
 
 private:
     Client client;
-    std::unique_ptr<ApplicationState> state;
+    std::unique_ptr<Scene> state;
 };

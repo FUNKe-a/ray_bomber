@@ -1,13 +1,13 @@
 #pragma once
 
-#include "ApplicationState.hpp"
+#include "Scene.hpp"
 
 #include <memory>
 #include <string>
 
 class Client;
 
-class ConnectingScene final : public ApplicationState
+class ConnectingScene final : public Scene
 {
 public:
     ConnectingScene(
@@ -17,7 +17,7 @@ public:
         std::string playerName
     );
 
-    std::unique_ptr<ApplicationState> update() override;
+    std::unique_ptr<Scene> update() override;
     void render() const override;
 
 private:
