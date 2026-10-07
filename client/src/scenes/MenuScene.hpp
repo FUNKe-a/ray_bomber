@@ -5,15 +5,15 @@
 #include <memory>
 #include <string>
 
-class Client;
+class GameSession;
 
 class MenuScene final : public Scene
 {
 public:
-    explicit MenuScene(Client& client);
+    explicit MenuScene(GameSession& session);
 
     MenuScene(
-        Client& client,
+        GameSession& session,
         std::string serverAddress,
         std::string port,
         std::string errorMessage,
@@ -34,7 +34,7 @@ private:
     void handleTextInput();
     bool validateConnectionDetails();
 
-    Client& client;
+    GameSession& session;
     std::string serverAddress;
     std::string port;
     std::string errorMessage;

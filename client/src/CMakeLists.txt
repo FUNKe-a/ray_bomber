@@ -32,13 +32,14 @@ target_include_directories(ray_bomber
 add_subdirectory(game)
 add_subdirectory(protocol)
 add_subdirectory(networking)
+add_subdirectory(session)
 add_subdirectory(rendering)
 
 target_link_libraries(ray_bomber
   PRIVATE
     raylib
     game_logic
-    networking
+    game_session
     rendering
 )
 

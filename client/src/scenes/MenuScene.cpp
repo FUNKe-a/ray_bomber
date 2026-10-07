@@ -1,13 +1,14 @@
 #include "MenuScene.hpp"
 
 #include "ConnectingScene.hpp"
-#include "Client.hpp"
+#include "GameSession.hpp"
 
 #include <raylib.h>
 
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <cstdint>
 
 namespace
 {
@@ -56,19 +57,19 @@ namespace
     }
 }
 
-MenuScene::MenuScene(Client& client)
-    : MenuScene(client, "127.0.0.1", "6769", "")
+MenuScene::MenuScene(GameSession& session)
+    : MenuScene(session, "127.0.0.1", "6769", "")
 {
 }
 
 MenuScene::MenuScene(
-    Client& client,
+    GameSession& session,
     std::string serverAddress,
     std::string port,
     std::string errorMessage,
     std::string playerName
 )
-    : client(client),
+    : session(session),
       serverAddress(std::move(serverAddress)),
       port(std::move(port)),
       errorMessage(std::move(errorMessage)),
@@ -109,14 +110,12 @@ std::unique_ptr<Scene> MenuScene::update()
         return nullptr;
     }
 
-    const auto serverPort = static_cast<unsigned short>(
-        std::stoi(port)
-    );
+    const auto serverPort = static_cast<std::uint16_t>(std::stoi(port));
 
-    client.connect(serverAddress, serverPort);
+    session.connect(serverAddress, serverPort, playerName);
 
     return std::make_unique<ConnectingScene>(
-        client,
+        session,
         serverAddress,
         port,
         playerName

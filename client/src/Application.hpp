@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Client.hpp"
+#include "GameSession.hpp"
 
 #include <memory>
 
@@ -18,6 +18,6 @@ public:
     int run();
 
 private:
-    Client client;
+    GameSession session;
     std::unique_ptr<Scene> state;
 };

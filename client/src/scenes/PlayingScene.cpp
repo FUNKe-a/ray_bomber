@@ -1,5 +1,5 @@
 #include "PlayingScene.hpp"
-#include "Client.hpp"
+#include "GameSession.hpp"
 #include "MenuScene.hpp"
 #include "Protocol.hpp"
 
@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 namespace
 {
@@ -27,55 +28,49 @@ namespace
 }
 
 PlayingScene::PlayingScene(
-    Client& client,
+    GameSession& session,
     std::string serverAddress,
     std::string port,
     std::string playerName
 )
-    : client(client),
-      game(playerName),
+    : session(session),
       serverAddress(std::move(serverAddress)),
       port(std::move(port)),
-      playerName(std::move(playerName)),
-      joinStartedAt(GetTime())
+      playerName(std::move(playerName))
 {
 }
 
 std::unique_ptr<Scene> PlayingScene::update()
 {
-    // receive messages
-    GameEvent event;
-    while (client.receive(event))
+    if (session.getState() == GameSession::State::Failed ||
+        session.getState() == GameSession::State::Disconnected)
     {
-        game.handleEvent(event);
-    }
+        std::string error = session.getError();
 
-    // check connection
-    if (!client.isConnected() ||
-        (!game.hasJoinedLobby() && GetTime() - joinStartedAt > 10.0))
-    {
-        std::string errorMessage = client.getError();
-        if (errorMessage.empty())
-            errorMessage = client.isConnected()
-                ? "No lobby response received within 10 seconds."
-                : "Server closed the connection.";
-        client.disconnect();
+        if (error.empty())
+            error = "Disconnected from server.";
 
         return std::make_unique<MenuScene>(
-            client,
+            session,
             std::move(serverAddress),
             std::move(port),
-            std::move(errorMessage),
+            std::move(error),
             std::move(playerName)
         );
     }
 
-    // Only send gameplay/lobby requests after the join response.
-    if (!game.hasJoinedLobby()) return nullptr;
+    if (session.getState() != GameSession::State::Joined)
+    {
+        return nullptr;
+    }
+    
+    const Game& game = session.getGame();
     const Player* localPlayer = game.getLocalPlayer();
-    if (localPlayer && IsKeyPressed(KEY_R)){
-        client.setReady(!localPlayer->isReady());
-        std::cout << "Sent a createReadyRequest" << std::endl;
+
+    if (localPlayer && IsKeyPressed(KEY_R))
+    {
+        session.setReady(!localPlayer->isReady());
+        std::cout << "Sent request is " << (!localPlayer->isReady() ? "ready" : "not ready") << std::endl;
     }
 
     // Arrow keys remain available for the existing movement demo. There is
@@ -84,7 +79,7 @@ std::unique_ptr<Scene> PlayingScene::update()
     {
         if (IsKeyPressed(binding.key))
         {
-            client.move(binding.direction);
+            session.move(binding.direction);
         }
     }
 
@@ -94,12 +89,14 @@ std::unique_ptr<Scene> PlayingScene::update()
 
 void PlayingScene::render() const
 {
-    renderer.render(game);
+    renderer.render(session.getGame());
     drawLobby();
 }
 
 void PlayingScene::drawLobby() const
 {
+    const Game& game = session.getGame();
+
     DrawRectangle(8, 8, 460, 52 + static_cast<int>(game.getPlayers().size()) * 24,
                   RAYWHITE);
     DrawText(game.hasJoinedLobby() ? "Lobby: R toggles ready | Arrows move"

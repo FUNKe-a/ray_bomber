@@ -5,13 +5,13 @@
 #include <memory>
 #include <string>
 
-class Client;
+class GameSession;
 
 class ConnectingScene final : public Scene
 {
 public:
     ConnectingScene(
-        Client& client,
+        GameSession& session,
         std::string serverAddress,
         std::string port,
         std::string playerName
@@ -21,7 +21,7 @@ public:
     void render() const override;
 
 private:
-    Client& client;
+    GameSession& session;
     std::string serverAddress;
     std::string port;
     std::string playerName;

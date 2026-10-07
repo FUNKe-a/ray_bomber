@@ -7,13 +7,13 @@
 #include <memory>
 #include <string>
 
-class Client;
+class GameSession;
 
 class PlayingScene final : public Scene
 {
 public:
     explicit PlayingScene(
-        Client& client,
+        GameSession& session,
         std::string serverAddress,
         std::string port,
         std::string playerName
@@ -27,12 +27,10 @@ private:
 
     void drawLobby() const;
 
-    Client& client;
-    Game game;
+    GameSession& session;
     GameRenderer renderer;
 
     std::string serverAddress;
     std::string port;
     std::string playerName;
-    double joinStartedAt = 0.0;
 };

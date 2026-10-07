@@ -2,7 +2,7 @@
 
 #include "MenuScene.hpp"
 #include "PlayingScene.hpp"
-#include "Client.hpp"
+#include "GameSession.hpp"
 
 #include <raylib.h>
 
@@ -10,12 +10,12 @@
 #include <utility>
 
 ConnectingScene::ConnectingScene(
-    Client& client,
+    GameSession& session,
     std::string serverAddress,
     std::string port,
     std::string playerName
 )
-    : client(client),
+    : session(session),
       serverAddress(std::move(serverAddress)),
       port(std::move(port)),
       playerName(std::move(playerName))
@@ -24,26 +24,23 @@ ConnectingScene::ConnectingScene(
 
 std::unique_ptr<Scene> ConnectingScene::update()
 {
-    if (client.isConnected())
+    if (session.getState() == GameSession::State::Joined)
     {
-        client.startReceiving();
-        client.joinLobby(playerName);
-        std::cout << "Sent a JoinlobbyRequest with name " << playerName << std::endl;
         return std::make_unique<PlayingScene>(
-            client, 
+            session, 
             std::move(serverAddress),
             std::move(port),
             std::move(playerName)
         );
     }
 
-    if (client.getConnectionState() == Client::ConnectionState::Failed)
+    if (session.getState() == GameSession::State::Failed)
     {
         return std::make_unique<MenuScene>(
-            client,
+            session,
             std::move(serverAddress),
             std::move(port),
-            client.getError(),
+            session.getError(),
             std::move(playerName)
         );
     }
@@ -53,7 +50,10 @@ std::unique_ptr<Scene> ConnectingScene::update()
 
 void ConnectingScene::render() const
 {
-    const char* text = "Connecting...";
+    const char* text =
+    session.getState() == GameSession::State::Joining
+        ? "Joining lobby..."
+        : "Connecting...";
 
     DrawText(
         text,
