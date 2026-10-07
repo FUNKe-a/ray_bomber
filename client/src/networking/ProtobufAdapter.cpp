@@ -115,6 +115,15 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                         }
                     };
 
+                case player::PlayerEvent::kSpawned:
+                    return GameEvent{
+                        PlayerSpawned{
+                            event.id(),
+                            event.spawned().x(),
+                            event.spawned().y()
+                        }
+                    };
+
                 default:
                     return std::nullopt;
             }

@@ -27,6 +27,12 @@ struct PlayerReadyChanged {
     bool ready;
 };
 
+struct PlayerSpawned {
+    std::uint32_t id;
+    int x;
+    int y;
+};
+
 struct PlayerMoved {
     std::uint32_t id;
     int x;
@@ -38,5 +44,6 @@ using GameEvent = std::variant<
     PlayerJoined,
     PlayerLeft,
     PlayerReadyChanged,
+    PlayerSpawned,
     PlayerMoved
 >;

@@ -51,6 +51,17 @@ void Game::apply(const PlayerReadyChanged& event)
     ensurePlayer(event.id).setReady(event.ready);
 }
 
+void Game::apply(const PlayerSpawned& event)
+{
+    if (event.x < 0 || event.x >= Map::Width ||
+        event.y < 0 || event.y >= Map::Height)
+    {
+        return;
+    }
+
+    ensurePlayer(event.id).setPosition(event.x, event.y);
+}
+
 void Game::apply(const PlayerMoved& event)
 {
     if (event.x < 0 || event.x >= Map::Width ||

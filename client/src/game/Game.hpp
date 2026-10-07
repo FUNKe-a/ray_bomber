@@ -25,6 +25,7 @@ private:
     void apply(const PlayerJoined& event);
     void apply(const PlayerLeft& event);
     void apply(const PlayerReadyChanged& event);
+    void apply(const PlayerSpawned& event);
     void apply(const PlayerMoved& event);
     Map map;
     std::unordered_map<std::uint32_t, Player> players;
