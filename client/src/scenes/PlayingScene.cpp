@@ -185,23 +185,6 @@ void PlayingScene::drawPlayer(
         TileSize - 16,
         color
     );
-
-    const std::string name = player.getName().empty()
-        ? "Player " + std::to_string(player.getId())
-        : player.getName();
-
-    const int fontSize = 16;
-    const int nameWidth = MeasureText(name.c_str(), fontSize);
-    const int nameX = screenX + (TileSize - nameWidth) / 2;
-    const int nameY = screenY - fontSize - 2;
-
-    DrawText(
-        name.c_str(),
-        nameX,
-        nameY,
-        fontSize,
-        color
-    );
 }
 
 void PlayingScene::drawLobby() const
@@ -224,25 +207,11 @@ void PlayingScene::drawLobby() const
         const Player* participant = game.getPlayer(id);
         const std::string name = participant->getName().empty()
             ? "Player " + std::to_string(id) : participant->getName();
-        const std::string suffix =
-            std::string(game.hasJoinedLobby() && id == game.getLocalPlayerId() ? " (you)" : "") +
+        const std::string label = name +
+            (game.hasJoinedLobby() && id == game.getLocalPlayerId() ? " (you)" : "") +
             (participant->isReady() ? " - READY" : " - not ready");
-
-        Color playerColor = DARKGRAY;
-        switch (participant->getColor())
-        {
-        case PlayerRed: playerColor = RED; break;
-        case PlayerGreen: playerColor = GREEN; break;
-        case PlayerBlue: playerColor = BLUE; break;
-        case PlayerYellow: playerColor = YELLOW; break;
-        default: break;
-        }
-
-        DrawText(name.c_str(), 18, y, 20, playerColor);
-
-        const int nameWidth = MeasureText(name.c_str(), 20);
-        DrawText(suffix.c_str(), 18 + nameWidth, y, 20,
-            participant->isReady() ? DARKGREEN : DARKGRAY);
+        DrawText(label.c_str(), 18, y, 20,
+                 participant->isReady() ? DARKGREEN : DARKGRAY);
         y += 24;
     }
 }

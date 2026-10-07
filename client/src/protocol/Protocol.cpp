@@ -70,7 +70,6 @@ bool Protocol::isServerMessage(const Envelope& message)
                         message.player_event().joined().color());
                 case player::PlayerEvent::kLeft:
                 case player::PlayerEvent::kReady:
-                case player::PlayerEvent::kSpawned:
                     return true;
                 default:
                     return false;
