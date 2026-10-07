@@ -61,6 +61,50 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 	}
 	netio.SendMessage(conn, response)
 
+	for existingConn, existingPlayer := range match.Players {
+		if existingConn == conn {
+			continue
+		}
+
+		existingPlayerEvent := &protocol.Envelope{
+			Payload: &protocol.Envelope_PlayerEvent{
+				PlayerEvent: &protocol.PlayerEvent{
+					Id: existingPlayer.ID,
+					EventType: &protocol.PlayerEvent_Joined{
+						Joined: &protocol.PlayerJoined{
+							Username: existingPlayer.Username,
+							Color:    existingPlayer.Color,
+						},
+					},
+				},
+			},
+		}
+
+		if err := netio.SendMessage(conn, existingPlayerEvent); err != nil {
+			return err
+		}
+
+		if existingPlayer.IsReady {
+			existingReadyEvent := &protocol.Envelope{
+				Payload: &protocol.Envelope_PlayerEvent{
+					PlayerEvent: &protocol.PlayerEvent{
+						Id: existingPlayer.ID,
+						EventType: &protocol.PlayerEvent_Ready{
+							Ready: &protocol.PlayerReady{
+								IsReady: true,
+							},
+						},
+					},
+				},
+			}
+
+			if err := netio.SendMessage(conn, existingReadyEvent); err != nil {
+				return err
+			}
+		}
+
+	}
+
 	broadcast := &protocol.Envelope{
 		Payload: &protocol.Envelope_PlayerEvent{
 			PlayerEvent: &protocol.PlayerEvent{
@@ -77,4 +121,52 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 	netio.BroadcastMessage(maps.Keys(match.Players), broadcast)
 
 	return nil
+}
+
+func HandleUpdateReadyState(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.UpdateReadyState) error {
+	player := match.Players[conn]
+	if player == nil {
+		return nil
+	}
+
+	player.IsReady = msg.IsReady
+
+	broadcast := &protocol.Envelope{
+		Payload: &protocol.Envelope_PlayerEvent{
+			PlayerEvent: &protocol.PlayerEvent{
+				Id: player.ID,
+				EventType: &protocol.PlayerEvent_Ready{
+					Ready: &protocol.PlayerReady{
+						IsReady: player.IsReady,
+					},
+				},
+			},
+		},
+	}
+
+	return netio.BroadcastMessage(maps.Keys(match.Players), broadcast)
+}
+
+func HandlePlayerDisconnect(match *gamelogic.GameMatch, conn net.Conn) error {
+	player, exists := match.Players[conn]
+	if !exists {
+		return nil
+	}
+
+	delete(match.Players, conn)
+
+	broadcast := &protocol.Envelope{
+		Payload: &protocol.Envelope_PlayerEvent{
+			PlayerEvent: &protocol.PlayerEvent{
+				Id: player.ID,
+				EventType: &protocol.PlayerEvent_Left{
+					Left: &protocol.PlayerLeft{
+						Reason: "Player disconnected",
+					},
+				},
+			},
+		},
+	}
+
+	return netio.BroadcastMessage(maps.Keys(match.Players), broadcast)
 }

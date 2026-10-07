@@ -5,8 +5,8 @@ package main
 import (
 	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 	"github.com/FUNKe-a/ray_bomber/server/internal/handlers"
+	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 	"log/slog"
 	"net"
 	"os"
@@ -34,17 +34,20 @@ func main() {
 	for {
 		conn, _ := ln.Accept()
 
-		go func(player_conn net.Conn, handler_c chan<- MsgWrapper) {
+		go func(player_conn net.Conn, handler_c chan<- MsgWrapper, match *gamelogic.GameMatch) {
 			for {
 				var msg protocol.Envelope
 				if err := netio.GetMessage(player_conn, &msg); err != nil {
 					slog.Debug("Failed to receive message", "err", err)
+					handlers.HandlePlayerDisconnect(match, player_conn)
+					player_conn.Close()
+					return
 				}
 
 				handler_c <- MsgWrapper{Conn: player_conn, Msg: &msg}
 
 			}
-		}(conn, h_channel)
+		}(conn, h_channel, &match)
 
 		idCounter += 1
 	}
@@ -58,10 +61,11 @@ func messageHandler(match *gamelogic.GameMatch, c <-chan MsgWrapper) {
 			handlers.HandleMoveRequest(match, wrapper.Conn, msg.MoveRequest)
 		case *protocol.Envelope_JoinLobbyRequest:
 			handlers.HandleJoinLobbyRequest(match, wrapper.Conn, msg.JoinLobbyRequest)
+		case *protocol.Envelope_UpdateReadyState:
+			handlers.HandleUpdateReadyState(match, wrapper.Conn, msg.UpdateReadyState)
 		}
 	}
 }
-
 
 func setupLogLevel() {
 	opts := &slog.HandlerOptions{

@@ -27,6 +27,7 @@ type Player struct {
 	Username string
 	X, Y     int32
 	Color    protocol.Color
+	IsReady  bool
 }
 
 // 20 values are reserved for tile types
