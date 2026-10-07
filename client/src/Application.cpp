@@ -1,7 +1,7 @@
 #include "Application.hpp"
 
-#include "application/ApplicationState.hpp"
-#include "scenes/MenuScene.hpp"
+#include "Scene.hpp"
+#include "MenuScene.hpp"
 
 #include <raylib.h>
 
@@ -20,29 +20,35 @@ Application::~Application() = default;
 
 int Application::run()
 {
+    SetTraceLogLevel(LOG_WARNING);
     InitWindow(ScreenWidth, ScreenHeight, "Ray Bomber");
     SetTargetFPS(TargetFramesPerSecond);
 
-    state = std::make_unique<MenuScene>(client);
+    state = std::make_unique<MenuScene>(session);
 
     SetExitKey(KEY_NULL);
 
     while (!WindowShouldClose())
     {
-        client.poll();
+        session.update();
 
         auto nextState = state->update();
-
-        state->render();
 
         if (nextState)
         {
             state = std::move(nextState);
         }
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        state->render();
+
+        EndDrawing();
     }
 
-    client.disconnect();
     state.reset();
+    session.disconnect();
     CloseWindow();
 
     return 0;

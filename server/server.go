@@ -5,11 +5,17 @@ package main
 import (
 	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	"github.com/FUNKe-a/ray_bomber/server/internal/handlers"
 	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 	"log/slog"
 	"net"
 	"os"
 )
+
+type MsgWrapper struct {
+	Conn net.Conn
+	Msg  *protocol.Envelope
+}
 
 func main() {
 	setupLogLevel()
@@ -28,25 +34,37 @@ func main() {
 	for {
 		conn, _ := ln.Accept()
 
-		go func(player_conn net.Conn, handler_c chan<- MsgWrapper) {
+		go func(player_conn net.Conn, handler_c chan<- MsgWrapper, match *gamelogic.GameMatch) {
 			for {
 				var msg protocol.Envelope
 				if err := netio.GetMessage(player_conn, &msg); err != nil {
 					slog.Debug("Failed to receive message", "err", err)
+					handlers.HandlePlayerDisconnect(match, player_conn)
+					player_conn.Close()
+					return
 				}
 
 				handler_c <- MsgWrapper{Conn: player_conn, Msg: &msg}
 
 			}
-		}(conn, h_channel)
+		}(conn, h_channel, &match)
 
 		idCounter += 1
 	}
 }
 
-type MsgWrapper struct {
-	Conn net.Conn
-	Msg  *protocol.Envelope
+func messageHandler(match *gamelogic.GameMatch, c <-chan MsgWrapper) {
+	for wrapper := range c {
+
+		switch msg := wrapper.Msg.Payload.(type) {
+		case *protocol.Envelope_MoveRequest:
+			handlers.HandleMoveRequest(match, wrapper.Conn, msg.MoveRequest)
+		case *protocol.Envelope_JoinLobbyRequest:
+			handlers.HandleJoinLobbyRequest(match, wrapper.Conn, msg.JoinLobbyRequest)
+		case *protocol.Envelope_UpdateReadyState:
+			handlers.HandleUpdateReadyState(match, wrapper.Conn, msg.UpdateReadyState)
+		}
+	}
 }
 
 func setupLogLevel() {
@@ -58,44 +76,4 @@ func setupLogLevel() {
 	logger := slog.New(handler)
 
 	slog.SetDefault(logger)
-}
-
-func messageHandler(match *gamelogic.GameMatch, c <-chan MsgWrapper) {
-	for wrapper := range c {
-		conn := wrapper.Conn
-		player := match.Players[conn]
-
-		switch msg := wrapper.Msg.Payload.(type) {
-		case *protocol.Envelope_MoveRequest:
-			new_x := player.X
-			new_y := player.Y
-
-			switch msg.MoveRequest.Direction {
-			case protocol.MoveRequest_UP:
-				new_y -= 1
-			case protocol.MoveRequest_RIGHT:
-				new_x += 1
-			case protocol.MoveRequest_DOWN:
-				new_y += 1
-			case protocol.MoveRequest_LEFT:
-				new_x -= 1
-			}
-
-			if new_x >= 0 && new_x < int32(len(match.Board[0])) && new_y >= 0 && new_y < int32(len(match.Board)) {
-				if match.Board[new_y][new_x] == gamelogic.EmptyTile {
-					msg := &protocol.Envelope{
-						Payload: &protocol.Envelope_PlayerMovement{
-							PlayerMovement: &protocol.PlayerMovement{
-								Id: player.ID,
-								X:  new_x,
-								Y:  new_y,
-							},
-						},
-					}
-
-					netio.SendMessage(conn, msg)
-				}
-			}
-		}
-	}
 }

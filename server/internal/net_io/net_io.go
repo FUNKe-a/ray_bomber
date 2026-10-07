@@ -6,7 +6,22 @@ import (
 	"google.golang.org/protobuf/proto"
 	"io"
 	"net"
+	"iter"
+	"errors"
 )
+
+func serialize(envelope *protocol.Envelope) ([]byte, error) {
+	bytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return nil, err
+	}
+
+	headBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(headBuf, uint32(len(bytes)))
+
+	packet := append(headBuf, bytes...)
+	return packet, nil
+}
 
 func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
 	headBuf := make([]byte, 4)
@@ -26,16 +41,29 @@ func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
 }
 
 func SendMessage(conn net.Conn, envelope *protocol.Envelope) error {
-	bytes, err := proto.Marshal(envelope)
+	msg, err := serialize(envelope)
 	if err != nil {
 		return err
 	}
 
-	headBuf := make([]byte, 4)
-	binary.BigEndian.PutUint32(headBuf, uint32(len(bytes)))
-
-	packet := append(headBuf, bytes...)
-
-	_, err = conn.Write(packet)
+	_, err = conn.Write(msg)
 	return err
 }
+
+func BroadcastMessage(player_conns iter.Seq[net.Conn], envelope *protocol.Envelope) error {
+	msg, err := serialize(envelope)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+	for conn := range player_conns {
+		_, err := conn.Write(msg)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+

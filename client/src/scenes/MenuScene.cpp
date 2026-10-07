@@ -1,17 +1,18 @@
 #include "MenuScene.hpp"
 
 #include "ConnectingScene.hpp"
-#include "Client.hpp"
+#include "GameSession.hpp"
+#include "UI.hpp"
 
 #include <raylib.h>
 
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <cstdint>
 
 namespace
 {
-    constexpr int ScreenWidth = 720;
     constexpr int InputWidth = 624;
     constexpr int InputHeight = 50;
     constexpr int ButtonWidth = 240;
@@ -20,7 +21,7 @@ namespace
     Rectangle serverAddressRectangle()
     {
         return {
-            (ScreenWidth - InputWidth) / 2.0f,
+            (GetScreenWidth() - InputWidth) / 2.0f,
             155.0f,
             static_cast<float>(InputWidth),
             static_cast<float>(InputHeight)
@@ -30,7 +31,7 @@ namespace
     Rectangle portRectangle()
     {
         return {
-            (ScreenWidth - InputWidth) / 2.0f,
+            (GetScreenWidth() - InputWidth) / 2.0f,
             245.0f,
             static_cast<float>(InputWidth),
             static_cast<float>(InputHeight)
@@ -40,7 +41,7 @@ namespace
     Rectangle connectButtonRectangle()
     {
         return {
-            (ScreenWidth - ButtonWidth) / 2.0f,
+            (GetScreenWidth() - ButtonWidth) / 2.0f,
             430.0f,
             static_cast<float>(ButtonWidth),
             static_cast<float>(ButtonHeight)
@@ -50,25 +51,25 @@ namespace
     Rectangle nameRectangle()
     {
         return {
-            (ScreenWidth - InputWidth) / 2.0f, 335.0f,
+            (GetScreenWidth() - InputWidth) / 2.0f, 335.0f,
             static_cast<float>(InputWidth), static_cast<float>(InputHeight)
         };
     }
 }
 
-MenuScene::MenuScene(Client& client)
-    : MenuScene(client, "127.0.0.1", "6769", "")
+MenuScene::MenuScene(GameSession& session)
+    : MenuScene(session, "127.0.0.1", "6769", "")
 {
 }
 
 MenuScene::MenuScene(
-    Client& client,
+    GameSession& session,
     std::string serverAddress,
     std::string port,
     std::string errorMessage,
     std::string playerName
 )
-    : client(client),
+    : session(session),
       serverAddress(std::move(serverAddress)),
       port(std::move(port)),
       errorMessage(std::move(errorMessage)),
@@ -76,7 +77,7 @@ MenuScene::MenuScene(
 {
 }
 
-std::unique_ptr<ApplicationState> MenuScene::update()
+std::unique_ptr<Scene> MenuScene::update()
 {
     const Vector2 mousePosition = GetMousePosition();
     const Rectangle addressRect = serverAddressRectangle();
@@ -109,14 +110,12 @@ std::unique_ptr<ApplicationState> MenuScene::update()
         return nullptr;
     }
 
-    const auto serverPort = static_cast<unsigned short>(
-        std::stoi(port)
-    );
+    const auto serverPort = static_cast<std::uint16_t>(std::stoi(port));
 
-    client.connect(serverAddress, serverPort);
+    session.connect(serverAddress, serverPort, playerName);
 
     return std::make_unique<ConnectingScene>(
-        client,
+        session,
         serverAddress,
         port,
         playerName
@@ -216,21 +215,16 @@ bool MenuScene::validateConnectionDetails()
 
 void MenuScene::render() const
 {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-
-    const char* title = "RAY BOMBER";
-
-    DrawText(
-        title,
-        ScreenWidth / 2 - MeasureText(title, 40) / 2,
-        55,
+    UI::drawCenteredText(
+        Rectangle{0.0f, 55.0f, static_cast<float>(GetScreenWidth()), 40.0f},
+        "RAY BOMBER",
         40,
         DARKGRAY
     );
 
     const Rectangle addressRect = serverAddressRectangle();
     const Rectangle portRect = portRectangle();
+    const Rectangle nameRect = nameRectangle();
     const Rectangle buttonRect = connectButtonRectangle();
 
     DrawText(
@@ -241,6 +235,10 @@ void MenuScene::render() const
         GRAY
     );
 
+    UI::drawTextField(addressRect, serverAddress,
+        activeField == InputField::ServerAddress
+    );
+
     DrawText(
         "Port",
         static_cast<int>(portRect.x),
@@ -249,77 +247,32 @@ void MenuScene::render() const
         GRAY
     );
 
-    DrawRectangleRec(addressRect, LIGHTGRAY);
-    DrawRectangleRec(portRect, LIGHTGRAY);
-
-    const Rectangle nameRect = nameRectangle();
-    DrawText("Player Name", static_cast<int>(nameRect.x),
-             static_cast<int>(nameRect.y) - 28, 20, GRAY);
-    DrawRectangleRec(nameRect, LIGHTGRAY);
-    DrawRectangleLinesEx(nameRect, 2.0f,
-        activeField == InputField::PlayerName ? BLUE : GRAY);
-    DrawText(playerName.c_str(), static_cast<int>(nameRect.x) + 15,
-             static_cast<int>(nameRect.y) + 14, 20, DARKGRAY);
-
-    DrawRectangleLinesEx(
-        addressRect,
-        2.0f,
-        activeField == InputField::ServerAddress ? BLUE : GRAY
-    );
-
-    DrawRectangleLinesEx(
-        portRect,
-        2.0f,
-        activeField == InputField::Port ? BLUE : GRAY
-    );
+    UI::drawTextField(portRect, port, activeField == InputField::Port);
 
     DrawText(
-        serverAddress.c_str(),
-        static_cast<int>(addressRect.x) + 15,
-        static_cast<int>(addressRect.y) + 14,
+        "Player Name",
+        static_cast<int>(nameRect.x),
+        static_cast<int>(nameRect.y) - 28,
         20,
-        DARKGRAY
+        GRAY
     );
 
-    DrawText(
-        port.c_str(),
-        static_cast<int>(portRect.x) + 15,
-        static_cast<int>(portRect.y) + 14,
-        20,
-        DARKGRAY
-    );
+    UI::drawTextField(nameRect, playerName, activeField == InputField::PlayerName);
 
-    const bool hovered = CheckCollisionPointRec(
-        GetMousePosition(),
-        buttonRect
-    );
-
-    DrawRectangleRec(buttonRect, hovered ? BLUE : DARKBLUE);
-
-    const char* buttonText = "CONNECT";
-
-    DrawText(
-        buttonText,
-        static_cast<int>(
-            buttonRect.x +
-            (buttonRect.width - MeasureText(buttonText, 20)) / 2
-        ),
-        static_cast<int>(buttonRect.y) + 16,
-        20,
-        WHITE
-    );
+    UI::drawButton(buttonRect, "CONNECT");
 
     if (!errorMessage.empty())
     {
-        DrawText(
-            errorMessage.c_str(),
-            ScreenWidth / 2 -
-                MeasureText(errorMessage.c_str(), 20) / 2,
-            515,
+        UI::drawCenteredText(
+            Rectangle{
+                0.0f,
+                515.0f,
+                static_cast<float>(GetScreenWidth()),
+                20.0f
+            },
+            errorMessage,
             20,
             RED
         );
     }
-
-    EndDrawing();
 }

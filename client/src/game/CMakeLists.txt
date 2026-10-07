@@ -11,9 +11,6 @@ target_sources(game_logic
 	  Game.hpp
 	  Map.hpp
 	  Player.hpp
-)
-
-target_link_libraries(game_logic
-  PUBLIC
-    protocol
+    GameTypes.hpp
+    GameEvent.hpp
 )

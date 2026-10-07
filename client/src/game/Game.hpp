@@ -2,7 +2,7 @@
 
 #include "Map.hpp"
 #include "Player.hpp"
-#include "envelope.pb.h"
+#include "GameEvent.hpp"
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -11,7 +11,7 @@ class Game
 {
 public:
     explicit Game(std::string localName = "Player");
-    void handleMessage(const Envelope& message);
+    void handleEvent(const GameEvent& event);
     const Map& getMap() const;
     const std::unordered_map<std::uint32_t, Player>& getPlayers() const;
     const Player* getPlayer(std::uint32_t id) const;
@@ -21,9 +21,12 @@ public:
 
 private:
     Player& ensurePlayer(std::uint32_t id);
-    void handleJoinResponse(const player::JoinLobbyResponse& response);
-    void handlePlayerEvent(const player::PlayerEvent& event);
-    void handleMovement(const player::PlayerMovement& movement);
+    void apply(const LobbyJoined& event);
+    void apply(const PlayerJoined& event);
+    void apply(const PlayerLeft& event);
+    void apply(const PlayerReadyChanged& event);
+    void apply(const PlayerSpawned& event);
+    void apply(const PlayerMoved& event);
     Map map;
     std::unordered_map<std::uint32_t, Player> players;
     std::string localName;

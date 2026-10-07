@@ -15,8 +15,13 @@ enum Color {
 
 // server messages
 message PlayerJoined {
-  string name = 2;
+  string username = 2;
   Color color = 3;
+}
+
+message PlayerSpawned {
+    int32 x = 1;
+    int32 y = 2;
 }
 
 message PlayerLeft {
@@ -34,6 +39,7 @@ message PlayerEvent {
     PlayerJoined joined = 2;
     PlayerLeft left = 3;
     PlayerReady ready = 4;
+    PlayerSpawned spawned = 5;
   }
 }
 
@@ -49,8 +55,8 @@ message PlayerMovement {
 }
 
 // player messages
-message JoinLobby {
-  string name = 1;
+message JoinLobbyRequest {
+  string username = 1;
 }
 
 message UpdateReadyState {
