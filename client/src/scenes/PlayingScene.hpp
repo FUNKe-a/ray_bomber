@@ -2,6 +2,7 @@
 
 #include "Scene.hpp"
 #include "Game.hpp"
+#include "GameRenderer.hpp"
 
 #include <memory>
 #include <string>
@@ -24,13 +25,11 @@ public:
 private:
     static constexpr int TileSize = 48;
 
-    void drawMap(const Map& map) const;
-    void drawPlayers() const;
-    void drawPlayer(const Player& player, bool isLocalPlayer) const;
     void drawLobby() const;
 
     Client& client;
     Game game;
+    GameRenderer renderer;
 
     std::string serverAddress;
     std::string port;

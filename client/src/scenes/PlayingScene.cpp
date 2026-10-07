@@ -94,82 +94,8 @@ std::unique_ptr<Scene> PlayingScene::update()
 
 void PlayingScene::render() const
 {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-
-    drawMap(game.getMap());
-    drawPlayers();
+    renderer.render(game);
     drawLobby();
-
-    EndDrawing();
-}
-
-void PlayingScene::drawMap(const Map& map) const
-{
-    for (int y = 0; y < Map::Height; ++y)
-    {
-        for (int x = 0; x < Map::Width; ++x)
-        {
-            const int screenX = x * TileSize;
-            const int screenY = y * TileSize;
-            const Color color = map.getTile(x, y) == Map::Tile::Wall
-                ? DARKGRAY
-                : LIGHTGRAY;
-
-            DrawRectangle(
-                screenX,
-                screenY,
-                TileSize,
-                TileSize,
-                color
-            );
-
-            DrawRectangleLines(
-                screenX,
-                screenY,
-                TileSize,
-                TileSize,
-                GRAY
-            );
-        }
-    }
-}
-
-void PlayingScene::drawPlayers() const
-{
-    const std::uint32_t localPlayerId = game.getLocalPlayerId();
-
-    for (const auto& [playerId, player] : game.getPlayers())
-    {
-        if (player.hasPosition())
-            drawPlayer(player, game.hasJoinedLobby() && playerId == localPlayerId);
-    }
-}
-
-void PlayingScene::drawPlayer(
-    const Player& player,
-    bool isLocalPlayer
-) const
-{
-    const int screenX = player.getX() * TileSize;
-    const int screenY = player.getY() * TileSize;
-    Color color = isLocalPlayer ? BLUE : RED;
-    switch (player.getColor())
-    {
-        case PlayerColor::Red:     color = RED;    break;
-        case PlayerColor::Green:   color = GREEN;  break;
-        case PlayerColor::Blue:    color = BLUE;   break;
-        case PlayerColor::Yellow:  color = YELLOW; break;
-        case PlayerColor::Unknown:                 break;
-    }
-
-    DrawRectangle(
-        screenX + 8,
-        screenY + 8,
-        TileSize - 16,
-        TileSize - 16,
-        color
-    );
 }
 
 void PlayingScene::drawLobby() const

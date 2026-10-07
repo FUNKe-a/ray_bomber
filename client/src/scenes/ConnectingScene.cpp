@@ -53,9 +53,6 @@ std::unique_ptr<Scene> ConnectingScene::update()
 
 void ConnectingScene::render() const
 {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-
     const char* text = "Connecting...";
 
     DrawText(
@@ -65,6 +62,4 @@ void ConnectingScene::render() const
         30,
         DARKGRAY
     );
-
-    EndDrawing();
 }

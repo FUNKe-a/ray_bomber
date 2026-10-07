@@ -216,9 +216,6 @@ bool MenuScene::validateConnectionDetails()
 
 void MenuScene::render() const
 {
-    BeginDrawing();
-    ClearBackground(RAYWHITE);
-
     const char* title = "RAY BOMBER";
 
     DrawText(
@@ -320,6 +317,4 @@ void MenuScene::render() const
             RED
         );
     }
-
-    EndDrawing();
 }

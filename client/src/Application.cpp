@@ -34,12 +34,17 @@ int Application::run()
 
         auto nextState = state->update();
 
-        state->render();
-
         if (nextState)
         {
             state = std::move(nextState);
         }
+
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+
+        state->render();
+
+        EndDrawing();
     }
 
     client.disconnect();
