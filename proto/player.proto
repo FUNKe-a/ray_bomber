@@ -19,6 +19,11 @@ message PlayerJoined {
   Color color = 3;
 }
 
+message PlayerSpawned {
+    int32 x = 1;
+    int32 y = 2;
+}
+
 message PlayerLeft {
   string reason = 1;
 }
@@ -34,6 +39,7 @@ message PlayerEvent {
     PlayerJoined joined = 2;
     PlayerLeft left = 3;
     PlayerReady ready = 4;
+    PlayerSpawned spawned = 5;
   }
 }
 

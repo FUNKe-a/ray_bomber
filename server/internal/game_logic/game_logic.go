@@ -55,12 +55,25 @@ func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, pro
 		}
 
 		if isTaken == false {
+			var spawnX, spawnY int32
+
+			switch color {
+			case protocol.Color_RED:
+				spawnX, spawnY = 1, 1
+			case protocol.Color_GREEN:
+				spawnX, spawnY = 13, 1
+			case protocol.Color_BLUE:
+				spawnX, spawnY = 1, 11
+			case protocol.Color_YELLOW:
+				spawnX, spawnY = 13, 11
+			}
+
 			playerID := tilePrefix + uint32(color)
 			match.Players[p_conn] = &Player{
 				ID:       playerID,
 				Username: username,
-				X:        0,
-				Y:        0,
+				X:        spawnX,
+				Y:        spawnY,
 				Color:    color,
 			}
 			return playerID, color

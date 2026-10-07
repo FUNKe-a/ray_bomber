@@ -51,6 +51,15 @@ void Game::handlePlayerEvent(const player::PlayerEvent& event)
             std::cout << "Received PlayerEvent kJoined as player " << participant.getName() << " and id " << participant.getId() << '\n';
             break;
         }
+        case player::PlayerEvent::kSpawned:
+        {
+            auto& participant = ensurePlayer(event.id());
+            participant.setPosition(
+                event.spawned().x(),
+                event.spawned().y()
+            );
+            break;
+        }
         case player::PlayerEvent::kReady:
             ensurePlayer(event.id()).setReady(event.ready().is_ready());
             std::cout << "Received PlayerEvent kReady with id " << event.id() << '\n';
