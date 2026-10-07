@@ -1,26 +1,26 @@
 #pragma once
 
-#include "ApplicationState.hpp"
+#include "Scene.hpp"
 
 #include <memory>
 #include <string>
 
-class Client;
+class GameSession;
 
-class MenuScene final : public ApplicationState
+class MenuScene final : public Scene
 {
 public:
-    explicit MenuScene(Client& client);
+    explicit MenuScene(GameSession& session);
 
     MenuScene(
-        Client& client,
+        GameSession& session,
         std::string serverAddress,
         std::string port,
         std::string errorMessage,
         std::string playerName = "Player"
     );
 
-    std::unique_ptr<ApplicationState> update() override;
+    std::unique_ptr<Scene> update() override;
     void render() const override;
 
 private:
@@ -34,7 +34,7 @@ private:
     void handleTextInput();
     bool validateConnectionDetails();
 
-    Client& client;
+    GameSession& session;
     std::string serverAddress;
     std::string port;
     std::string errorMessage;

@@ -1,4 +1,5 @@
 #include "Client.hpp"
+#include "ProtobufAdapter.hpp"
 
 #include <exception>
 #include <utility>
@@ -82,26 +83,67 @@ void Client::readBody(const std::shared_ptr<Session>& current)
     asio::async_read(current->socket, asio::buffer(current->body),
         [this, current](const asio::error_code& error, std::size_t count)
         {
-            if (session != current) return;
-            if (error) { fail(current, error.message()); return; }
+            if (session != current)
+            {
+                return;
+            } 
+            
+            if (error)
+            {
+                fail(current, error.message()); 
+                return;
+            }
+
             Envelope message;
+
             if (count != current->body.size() ||
-                !Protocol::deserialize(current->body, message) ||
-                !Protocol::isServerMessage(message))
-            { fail(current, "Invalid server envelope."); return; }
-            if (incomingMessages.size() >= MaxQueuedMessages)
-            { fail(current, "Incoming message queue is full."); return; }
-            incomingMessages.push_back(std::move(message));
+                !Protocol::deserialize(current->body, message))
+            {
+                fail(current, "Invalid server envelope.");
+                return;
+            }
+
+            auto event = ProtobufAdapter::decode(message);
+
+            if (!event) {
+                fail(current, "Unsupported or invalid server message.");
+                return;
+            }
+
+            if (incomingMessages.size() >= MaxQueuedMessages) {
+                fail(current, "Incoming message queue is full.");
+                return;
+            }
+
+            incomingMessages.push_back(std::move(*event));
             readHeader(current);
-        });
+        }
+    );
 }
 
-bool Client::receive(Envelope& message)
+bool Client::receive(GameEvent& event)
 {
-    if (incomingMessages.empty()) return false;
-    message = std::move(incomingMessages.front());
+    if (incomingMessages.empty())
+        return false;
+
+    event = std::move(incomingMessages.front());
     incomingMessages.pop_front();
     return true;
+}
+
+void Client::joinLobby(const std::string& name)
+{
+    send(ProtobufAdapter::makeJoin(name));
+}
+
+void Client::setReady(bool ready)
+{
+    send(ProtobufAdapter::makeReady(ready));
+}
+
+void Client::move(Direction direction)
+{
+    send(ProtobufAdapter::makeMove(direction));
 }
 
 void Client::send(const Envelope& message)

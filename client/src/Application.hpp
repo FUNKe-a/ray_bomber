@@ -1,10 +1,10 @@
 #pragma once
 
-#include "Client.hpp"
+#include "GameSession.hpp"
 
 #include <memory>
 
-class ApplicationState;
+class Scene;
 
 class Application
 {
@@ -18,6 +18,6 @@ public:
     int run();
 
 private:
-    Client client;
-    std::unique_ptr<ApplicationState> state;
+    GameSession session;
+    std::unique_ptr<Scene> state;
 };

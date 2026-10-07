@@ -7,10 +7,10 @@
 
 class GameSession;
 
-class ConnectingScene final : public Scene
+class LobbyScene final : public Scene
 {
 public:
-    ConnectingScene(
+    explicit LobbyScene(
         GameSession& session,
         std::string serverAddress,
         std::string port,
@@ -21,7 +21,10 @@ public:
     void render() const override;
 
 private:
+    std::unique_ptr<Scene> returnToMenu(std::string error);
+
     GameSession& session;
+
     std::string serverAddress;
     std::string port;
     std::string playerName;

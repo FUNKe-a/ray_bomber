@@ -14,13 +14,13 @@ target_sources(ray_bomber
   PRIVATE
     Application.cpp
     main.cpp
-    application/ApplicationState.hpp
+    application/Scene.hpp
     scenes/ConnectingScene.cpp
     scenes/ConnectingScene.hpp
     scenes/MenuScene.cpp
     scenes/MenuScene.hpp
-    scenes/PlayingScene.cpp
-    scenes/PlayingScene.hpp
+    scenes/LobbyScene.cpp
+    scenes/LobbyScene.hpp
 )
 
 target_include_directories(ray_bomber
@@ -29,15 +29,20 @@ target_include_directories(ray_bomber
     scenes
 )
 
+add_subdirectory(game)
 add_subdirectory(protocol)
 add_subdirectory(networking)
-add_subdirectory(game)
+add_subdirectory(session)
+add_subdirectory(rendering)
+add_subdirectory(ui)
 
 target_link_libraries(ray_bomber
   PRIVATE
     raylib
     game_logic
-    networking
+    game_session
+    rendering
+    ui
 )
 
 

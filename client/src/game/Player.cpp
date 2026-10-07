@@ -10,7 +10,7 @@ void Player::setPosition(int newX, int newY)
 { x = newX; y = newY; positioned = true; }
 const std::string& Player::getName() const { return name; }
 void Player::setName(std::string value) { name = std::move(value); }
-player::Color Player::getColor() const { return color; }
-void Player::setColor(player::Color value) { color = value; }
+PlayerColor Player::getColor() const { return color; }
+void Player::setColor(PlayerColor value) { color = value; }
 bool Player::isReady() const { return ready; }
 void Player::setReady(bool value) { ready = value; }

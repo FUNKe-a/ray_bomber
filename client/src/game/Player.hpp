@@ -1,6 +1,6 @@
 #pragma once
 
-#include "player.pb.h"
+#include "GameTypes.hpp"
 #include <cstdint>
 #include <string>
 
@@ -15,8 +15,8 @@ public:
     void setPosition(int x, int y);
     const std::string& getName() const;
     void setName(std::string name);
-    player::Color getColor() const;
-    void setColor(player::Color color);
+    PlayerColor getColor() const;
+    void setColor(PlayerColor color);
     bool isReady() const;
     void setReady(bool ready);
 
@@ -26,6 +26,6 @@ private:
     int y = 0;
     bool positioned = false;
     std::string name;
-    player::Color color = player::UNKNOWN;
+    PlayerColor color = PlayerColor::Unknown;
     bool ready = false;
 };
