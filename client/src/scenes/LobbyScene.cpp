@@ -7,24 +7,36 @@
 #include <raylib.h>
 
 #include <algorithm>
-#include <array>
 #include <cstdint>
 #include <utility>
 #include <vector>
 
 namespace
 {
-    struct MovementBinding {
-        KeyboardKey key;
-        Direction direction;
-    };
+    Rectangle disconnectButton()
+    {
+        return {
+            static_cast<float>(GetScreenWidth()) / 2.0f - 110.0f,
+            static_cast<float>(GetScreenHeight()) - 70.0f,
+            220.0f,
+            44.0f
+        };
+    }
 
-    constexpr std::array<MovementBinding, 4> MovementBindings{{
-        {KEY_UP, Direction::Up},
-        {KEY_DOWN, Direction::Down},
-        {KEY_LEFT, Direction::Left},
-        {KEY_RIGHT, Direction::Right}
-    }};
+    Color toRaylibColor(PlayerColor color)
+    {
+        switch (color)
+        {
+            case PlayerColor::Red:    return RED;
+            case PlayerColor::Green:  return GREEN;
+            case PlayerColor::Blue:   return BLUE;
+            case PlayerColor::Yellow: return YELLOW;
+            case PlayerColor::Unknown:
+                return GRAY;
+        }
+
+        return GRAY;
+    }
 }
 
 LobbyScene::LobbyScene(
@@ -40,114 +52,213 @@ LobbyScene::LobbyScene(
 {
 }
 
+std::unique_ptr<Scene> LobbyScene::returnToMenu(std::string error)
+{
+    return std::make_unique<MenuScene>(
+        session,
+        std::move(serverAddress),
+        std::move(port),
+        std::move(error),
+        std::move(playerName)
+    );
+}
+
 std::unique_ptr<Scene> LobbyScene::update()
 {
     const auto state = session.getState();
 
-    if (state == GameSession::State::Failed ||
-        state == GameSession::State::Disconnected)
+    if (state == GameSession::State::Failed)
     {
+        // Copy the error before disconnect() clears it.
         std::string error = session.getError();
+        session.disconnect();
 
-        if (error.empty())
-            error = "Disconnected from server.";
+        return returnToMenu(std::move(error));
+    }
 
-        return std::make_unique<MenuScene>(
-            session,
-            std::move(serverAddress),
-            std::move(port),
-            std::move(error),
-            std::move(playerName)
+    if (state == GameSession::State::Disconnected)
+    {
+        return returnToMenu("Disconnected from server.");
+    }
+
+    const bool disconnectClicked =
+        IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
+        CheckCollisionPointRec(
+            GetMousePosition(),
+            disconnectButton()
         );
+
+    if (disconnectClicked || IsKeyPressed(KEY_ESCAPE))
+    {
+        session.disconnect();
+
+        // Leaving intentionally is not an error.
+        return returnToMenu("");
     }
 
-    if (state != GameSession::State::Joined)
+    if (state == GameSession::State::Joined)
     {
-        return nullptr;
-    }
-    
-    const Game& game = session.getGame();
-    const Player* localPlayer = game.getLocalPlayer();
+        const Player* localPlayer =
+            session.getGame().getLocalPlayer();
 
-    if (localPlayer && IsKeyPressed(KEY_R))
-    {
-        session.setReady(!localPlayer->isReady());
-    }
-
-    for (const MovementBinding& binding : MovementBindings)
-    {
-        if (IsKeyPressed(binding.key))
+        if (localPlayer && IsKeyPressed(KEY_R))
         {
-            session.move(binding.direction);
+            session.setReady(!localPlayer->isReady());
         }
     }
 
-    // dont change the scene
     return nullptr;
 }
 
 void LobbyScene::render() const
 {
-    renderer.render(session.getGame());
-    drawLobby();
-}
-
-void LobbyScene::drawLobby() const
-{
     const Game& game = session.getGame();
 
-    const int panelHeight =
-        52 + static_cast<int>(game.getPlayers().size()) * 24;
-
-    DrawRectangle(8, 8, 460, panelHeight, RAYWHITE);
+    const char* title = "LOBBY";
 
     DrawText(
-        "Lobby: R toggles ready | Arrows move",
-        18,
-        14,
-        20,
+        title,
+        (GetScreenWidth() - MeasureText(title, 36)) / 2,
+        35,
+        30,
         DARKGRAY
     );
 
-    // Keep the display order stable.
+    const char* hint = "Press R to toggle ready";
+
+    DrawText(
+        hint,
+        (GetScreenWidth() - MeasureText(hint, 20)) / 2,
+        85,
+        20,
+        GRAY
+    );
+
+    const int left = 40;
+    const int width = GetScreenWidth() - 2 * left;
+    const int statusX = left + width - 160;
+
+    DrawText("COLOR", left + 12, 130, 20, GRAY);
+    DrawText("PLAYER", left + 90, 130, 20, GRAY);
+    DrawText("STATUS", statusX, 130, 20, GRAY);
+
+    // unordered_map does not provide a stable display order.
     std::vector<std::uint32_t> ids;
     ids.reserve(game.getPlayers().size());
 
-    for (const auto& [id, participant] : game.getPlayers())
+    for (const auto& entry : game.getPlayers())
     {
-        ids.push_back(id);
+        ids.push_back(entry.first);
     }
 
     std::sort(ids.begin(), ids.end());
 
-    int y = 42;
+    int y = 160;
 
     for (const auto id : ids)
     {
-        const Player* participant = game.getPlayer(id);
-
-        const std::string name =
-            participant->getName().empty()
-                ? "Player " + std::to_string(id)
-                : participant->getName();
+        const Player* player = game.getPlayer(id);
 
         const bool isLocalPlayer =
             game.hasJoinedLobby() &&
             id == game.getLocalPlayerId();
 
-        const std::string label =
-            name +
-            (isLocalPlayer ? " (you)" : "") +
-            (participant->isReady() ? " - READY" : " - not ready");
+        const Rectangle row{
+            static_cast<float>(left),
+            static_cast<float>(y),
+            static_cast<float>(width),
+            48.0f
+        };
+
+        DrawRectangleRec(row, LIGHTGRAY);
+
+        if (isLocalPlayer)
+        {
+            DrawRectangleLinesEx(row, 2.0f, DARKBLUE);
+        }
+
+        // Show the assigned color independently of ready status.
+        DrawRectangle(
+            left + 20,
+            y + 12,
+            24,
+            24,
+            toRaylibColor(player->getColor())
+        );
+
+        DrawRectangleLines(
+            left + 20,
+            y + 12,
+            24,
+            24,
+            DARKGRAY
+        );
+
+        std::string name = player->getName().empty()
+            ? "Player " + std::to_string(id)
+            : player->getName();
+
+        const std::string suffix = isLocalPlayer ? " (you)" : "";
+
+        // Keep long names from overlapping the status column.
+        const int nameWidth = statusX - (left + 90) - 16;
+
+        if (MeasureText((name + suffix).c_str(), 20) > nameWidth)
+        {
+            while (!name.empty() &&
+                   MeasureText(
+                       (name + "..." + suffix).c_str(), 20
+                   ) > nameWidth)
+            {
+                name.pop_back();
+            }
+
+            name += "...";
+        }
+
+        const std::string label = name + suffix;
 
         DrawText(
             label.c_str(),
-            18,
-            y,
+            left + 90,
+            y + 14,
             20,
-            participant->isReady() ? DARKGREEN : DARKGRAY
+            DARKGRAY
         );
 
-        y += 24;
+        DrawText(
+            player->isReady() ? "READY" : "NOT READY",
+            statusX,
+            y + 14,
+            20,
+            player->isReady() ? DARKGREEN : DARKGRAY
+        );
+
+        y += 58;
     }
+
+    if (ids.empty())
+    {
+        DrawText("Waiting for players...", left + 12, y, 20, GRAY);
+    }
+
+    const Rectangle button = disconnectButton();
+
+    const bool hovered =
+        CheckCollisionPointRec(GetMousePosition(), button);
+
+    DrawRectangleRec(button, hovered ? RED : MAROON);
+
+    const char* buttonText = "Disconnect";
+
+    DrawText(
+        buttonText,
+        static_cast<int>(
+            button.x +
+            (button.width - MeasureText(buttonText, 20)) / 2
+        ),
+        static_cast<int>(button.y + 12),
+        20,
+        WHITE
+    );
 }

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Scene.hpp"
-#include "GameRenderer.hpp"
 
 #include <memory>
 #include <string>
@@ -22,10 +21,9 @@ public:
     void render() const override;
 
 private:
-    void drawLobby() const;
+    std::unique_ptr<Scene> returnToMenu(std::string error);
 
     GameSession& session;
-    GameRenderer renderer;
 
     std::string serverAddress;
     std::string port;
