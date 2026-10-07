@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Scene.hpp"
-#include "Game.hpp"
 #include "GameRenderer.hpp"
 
 #include <memory>
@@ -9,10 +8,10 @@
 
 class GameSession;
 
-class PlayingScene final : public Scene
+class LobbyScene final : public Scene
 {
 public:
-    explicit PlayingScene(
+    explicit LobbyScene(
         GameSession& session,
         std::string serverAddress,
         std::string port,
@@ -23,8 +22,6 @@ public:
     void render() const override;
 
 private:
-    static constexpr int TileSize = 48;
-
     void drawLobby() const;
 
     GameSession& session;

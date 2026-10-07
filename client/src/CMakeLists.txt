@@ -19,8 +19,8 @@ target_sources(ray_bomber
     scenes/ConnectingScene.hpp
     scenes/MenuScene.cpp
     scenes/MenuScene.hpp
-    scenes/PlayingScene.cpp
-    scenes/PlayingScene.hpp
+    scenes/LobbyScene.cpp
+    scenes/LobbyScene.hpp
 )
 
 target_include_directories(ray_bomber

@@ -1,16 +1,16 @@
-#include "PlayingScene.hpp"
+#include "LobbyScene.hpp"
+
 #include "GameSession.hpp"
+#include "GameTypes.hpp"
 #include "MenuScene.hpp"
-#include "Protocol.hpp"
 
 #include <raylib.h>
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <utility>
 #include <vector>
-#include <iostream>
 
 namespace
 {
@@ -27,7 +27,7 @@ namespace
     }};
 }
 
-PlayingScene::PlayingScene(
+LobbyScene::LobbyScene(
     GameSession& session,
     std::string serverAddress,
     std::string port,
@@ -40,10 +40,12 @@ PlayingScene::PlayingScene(
 {
 }
 
-std::unique_ptr<Scene> PlayingScene::update()
+std::unique_ptr<Scene> LobbyScene::update()
 {
-    if (session.getState() == GameSession::State::Failed ||
-        session.getState() == GameSession::State::Disconnected)
+    const auto state = session.getState();
+
+    if (state == GameSession::State::Failed ||
+        state == GameSession::State::Disconnected)
     {
         std::string error = session.getError();
 
@@ -59,7 +61,7 @@ std::unique_ptr<Scene> PlayingScene::update()
         );
     }
 
-    if (session.getState() != GameSession::State::Joined)
+    if (state != GameSession::State::Joined)
     {
         return nullptr;
     }
@@ -70,11 +72,8 @@ std::unique_ptr<Scene> PlayingScene::update()
     if (localPlayer && IsKeyPressed(KEY_R))
     {
         session.setReady(!localPlayer->isReady());
-        std::cout << "Sent request is " << (!localPlayer->isReady() ? "ready" : "not ready") << std::endl;
     }
 
-    // Arrow keys remain available for the existing movement demo. There is
-    // no match-start/phase message in these schemas yet.
     for (const MovementBinding& binding : MovementBindings)
     {
         if (IsKeyPressed(binding.key))
@@ -87,39 +86,68 @@ std::unique_ptr<Scene> PlayingScene::update()
     return nullptr;
 }
 
-void PlayingScene::render() const
+void LobbyScene::render() const
 {
     renderer.render(session.getGame());
     drawLobby();
 }
 
-void PlayingScene::drawLobby() const
+void LobbyScene::drawLobby() const
 {
     const Game& game = session.getGame();
 
-    DrawRectangle(8, 8, 460, 52 + static_cast<int>(game.getPlayers().size()) * 24,
-                  RAYWHITE);
-    DrawText(game.hasJoinedLobby() ? "Lobby: R toggles ready | Arrows move"
-                                 : "Joining lobby...", 18, 14, 20, DARKGRAY);
-    // Stable presentation order despite the model using an unordered map.
+    const int panelHeight =
+        52 + static_cast<int>(game.getPlayers().size()) * 24;
+
+    DrawRectangle(8, 8, 460, panelHeight, RAYWHITE);
+
+    DrawText(
+        "Lobby: R toggles ready | Arrows move",
+        18,
+        14,
+        20,
+        DARKGRAY
+    );
+
+    // Keep the display order stable.
     std::vector<std::uint32_t> ids;
+    ids.reserve(game.getPlayers().size());
+
     for (const auto& [id, participant] : game.getPlayers())
     {
-        (void)participant;
         ids.push_back(id);
     }
+
     std::sort(ids.begin(), ids.end());
+
     int y = 42;
+
     for (const auto id : ids)
     {
         const Player* participant = game.getPlayer(id);
-        const std::string name = participant->getName().empty()
-            ? "Player " + std::to_string(id) : participant->getName();
-        const std::string label = name +
-            (game.hasJoinedLobby() && id == game.getLocalPlayerId() ? " (you)" : "") +
+
+        const std::string name =
+            participant->getName().empty()
+                ? "Player " + std::to_string(id)
+                : participant->getName();
+
+        const bool isLocalPlayer =
+            game.hasJoinedLobby() &&
+            id == game.getLocalPlayerId();
+
+        const std::string label =
+            name +
+            (isLocalPlayer ? " (you)" : "") +
             (participant->isReady() ? " - READY" : " - not ready");
-        DrawText(label.c_str(), 18, y, 20,
-                 participant->isReady() ? DARKGREEN : DARKGRAY);
+
+        DrawText(
+            label.c_str(),
+            18,
+            y,
+            20,
+            participant->isReady() ? DARKGREEN : DARKGRAY
+        );
+
         y += 24;
     }
 }

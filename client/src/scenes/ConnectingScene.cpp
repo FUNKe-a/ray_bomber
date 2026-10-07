@@ -1,7 +1,7 @@
 #include "ConnectingScene.hpp"
 
 #include "MenuScene.hpp"
-#include "PlayingScene.hpp"
+#include "LobbyScene.hpp"
 #include "GameSession.hpp"
 
 #include <raylib.h>
@@ -26,7 +26,7 @@ std::unique_ptr<Scene> ConnectingScene::update()
 {
     if (session.getState() == GameSession::State::Joined)
     {
-        return std::make_unique<PlayingScene>(
+        return std::make_unique<LobbyScene>(
             session, 
             std::move(serverAddress),
             std::move(port),
