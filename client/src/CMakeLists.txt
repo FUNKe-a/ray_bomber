@@ -34,6 +34,7 @@ add_subdirectory(protocol)
 add_subdirectory(networking)
 add_subdirectory(session)
 add_subdirectory(rendering)
+add_subdirectory(ui)
 
 target_link_libraries(ray_bomber
   PRIVATE
@@ -41,6 +42,7 @@ target_link_libraries(ray_bomber
     game_logic
     game_session
     rendering
+    ui
 )
 
 

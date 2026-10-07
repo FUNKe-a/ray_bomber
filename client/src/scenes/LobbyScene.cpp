@@ -4,6 +4,8 @@
 #include "GameTypes.hpp"
 #include "MenuScene.hpp"
 
+#include "UI.hpp"
+
 #include <raylib.h>
 
 #include <algorithm>
@@ -37,6 +39,14 @@ namespace
 
         return GRAY;
     }
+
+    const UI::Theme DisconnectTheme = []
+    {
+        UI::Theme theme;
+        theme.button = MAROON;
+        theme.buttonHovered = RED;
+        return theme;
+    }();
 }
 
 LobbyScene::LobbyScene(
@@ -81,14 +91,7 @@ std::unique_ptr<Scene> LobbyScene::update()
         return returnToMenu("Disconnected from server.");
     }
 
-    const bool disconnectClicked =
-        IsMouseButtonPressed(MOUSE_BUTTON_LEFT) &&
-        CheckCollisionPointRec(
-            GetMousePosition(),
-            disconnectButton()
-        );
-
-    if (disconnectClicked || IsKeyPressed(KEY_ESCAPE))
+    if (UI::isClicked(disconnectButton()) || IsKeyPressed(KEY_ESCAPE))
     {
         session.disconnect();
 
@@ -118,7 +121,7 @@ void LobbyScene::render() const
 
     DrawText(
         title,
-        (GetScreenWidth() - MeasureText(title, 36)) / 2,
+        (GetScreenWidth() - MeasureText(title, 30)) / 2,
         35,
         30,
         DARKGRAY
@@ -178,20 +181,14 @@ void LobbyScene::render() const
         }
 
         // Show the assigned color independently of ready status.
-        DrawRectangle(
-            left + 20,
-            y + 12,
-            24,
-            24,
+        UI::drawColorSwatch(
+            {
+                static_cast<float>(left + 20),
+                static_cast<float>(y + 12),
+                24.0f,
+                24.0f
+            },
             toRaylibColor(player->getColor())
-        );
-
-        DrawRectangleLines(
-            left + 20,
-            y + 12,
-            24,
-            24,
-            DARKGRAY
         );
 
         std::string name = player->getName().empty()
@@ -242,23 +239,10 @@ void LobbyScene::render() const
         DrawText("Waiting for players...", left + 12, y, 20, GRAY);
     }
 
-    const Rectangle button = disconnectButton();
-
-    const bool hovered =
-        CheckCollisionPointRec(GetMousePosition(), button);
-
-    DrawRectangleRec(button, hovered ? RED : MAROON);
-
-    const char* buttonText = "Disconnect";
-
-    DrawText(
-        buttonText,
-        static_cast<int>(
-            button.x +
-            (button.width - MeasureText(buttonText, 20)) / 2
-        ),
-        static_cast<int>(button.y + 12),
-        20,
-        WHITE
+    UI::drawButton(
+        disconnectButton(),
+        "Disconnect",
+        true,
+        DisconnectTheme
     );
 }

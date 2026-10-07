@@ -3,6 +3,7 @@
 #include "MenuScene.hpp"
 #include "LobbyScene.hpp"
 #include "GameSession.hpp"
+#include "UI.hpp"
 
 #include <raylib.h>
 
@@ -55,10 +56,15 @@ void ConnectingScene::render() const
         ? "Joining lobby..."
         : "Connecting...";
 
-    DrawText(
+    
+    UI::drawCenteredText(
+        Rectangle{
+            0.0f,
+            0.0f,
+            static_cast<float>(GetScreenWidth()),
+            static_cast<float>(GetScreenHeight())
+        },
         text,
-        360 - MeasureText(text, 30) / 2,
-        220,
         30,
         DARKGRAY
     );
