@@ -1,19 +1,7 @@
 #include "PlayingScene.hpp"
-
 #include "Client.hpp"
 #include "MenuScene.hpp"
 #include "Protocol.hpp"
-
-// Capture the protocol enum values before raylib defines its color macros.
-// Macros expand even in qualified names such as player::RED.
-namespace
-{
-    constexpr player::Color PlayerRed = player::RED;
-    constexpr player::Color PlayerGreen = player::GREEN;
-    constexpr player::Color PlayerBlue = player::BLUE;
-    constexpr player::Color PlayerYellow = player::YELLOW;
-}
-
 
 #include <raylib.h>
 
@@ -25,17 +13,16 @@ namespace
 
 namespace
 {
-    struct MovementBinding
-    {
+    struct MovementBinding {
         KeyboardKey key;
-        player::MoveRequest::Direction direction;
+        Direction direction;
     };
 
     constexpr std::array<MovementBinding, 4> MovementBindings{{
-        {KEY_UP, player::MoveRequest::UP},
-        {KEY_DOWN, player::MoveRequest::DOWN},
-        {KEY_LEFT, player::MoveRequest::LEFT},
-        {KEY_RIGHT, player::MoveRequest::RIGHT}
+        {KEY_UP, Direction::Up},
+        {KEY_DOWN, Direction::Down},
+        {KEY_LEFT, Direction::Left},
+        {KEY_RIGHT, Direction::Right}
     }};
 }
 
@@ -57,10 +44,10 @@ PlayingScene::PlayingScene(
 std::unique_ptr<Scene> PlayingScene::update()
 {
     // receive messages
-    Envelope message;
-    while (client.receive(message))
+    GameEvent event;
+    while (client.receive(event))
     {
-        game.handleMessage(message);
+        game.handleEvent(event);
     }
 
     // check connection
@@ -87,7 +74,7 @@ std::unique_ptr<Scene> PlayingScene::update()
     if (!game.hasJoinedLobby()) return nullptr;
     const Player* localPlayer = game.getLocalPlayer();
     if (localPlayer && IsKeyPressed(KEY_R)){
-        client.send(Protocol::createReadyRequest(!localPlayer->isReady()));
+        client.setReady(!localPlayer->isReady());
         std::cout << "Sent a createReadyRequest" << std::endl;
     }
 
@@ -97,9 +84,7 @@ std::unique_ptr<Scene> PlayingScene::update()
     {
         if (IsKeyPressed(binding.key))
         {
-            client.send(
-                Protocol::createMoveRequest(binding.direction)
-            );
+            client.move(binding.direction);
         }
     }
 
@@ -171,11 +156,11 @@ void PlayingScene::drawPlayer(
     Color color = isLocalPlayer ? BLUE : RED;
     switch (player.getColor())
     {
-        case PlayerRed: color = RED; break;
-        case PlayerGreen: color = GREEN; break;
-        case PlayerBlue: color = BLUE; break;
-        case PlayerYellow: color = YELLOW; break;
-        default: break;
+        case PlayerColor::Red:     color = RED;    break;
+        case PlayerColor::Green:   color = GREEN;  break;
+        case PlayerColor::Blue:    color = BLUE;   break;
+        case PlayerColor::Yellow:  color = YELLOW; break;
+        case PlayerColor::Unknown:                 break;
     }
 
     DrawRectangle(

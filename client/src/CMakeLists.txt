@@ -29,9 +29,9 @@ target_include_directories(ray_bomber
     scenes
 )
 
+add_subdirectory(game)
 add_subdirectory(protocol)
 add_subdirectory(networking)
-add_subdirectory(game)
 
 target_link_libraries(ray_bomber
   PRIVATE

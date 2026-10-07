@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Protocol.hpp"
+#include "GameEvent.hpp"
+#include "GameTypes.hpp"
+
 #include <asio.hpp>
 
 #include <array>
@@ -25,9 +28,14 @@ public:
     bool isConnected() const;
     const std::string& getError() const;
     bool receive(Envelope& message);
-    void send(const Envelope& message);
+
+    void joinLobby(const std::string& name);
+    void setReady(bool ready);
+    void move(Direction direction);
+    bool receive(GameEvent& event);
 
 private:
+    void send(const Envelope& message);
     // Each connection owns its async buffers. Cancelled callbacks retain the
     // old session, so reconnecting cannot reuse a buffer still owned by Asio.
     struct Session
@@ -51,7 +59,7 @@ private:
 
     asio::io_context ioContext;
     std::shared_ptr<Session> session;
-    std::deque<Envelope> incomingMessages;
+    std::deque<GameEvent> incomingMessages;
     ConnectionState connectionState = ConnectionState::Disconnected;
     std::string errorMessage;
     static constexpr std::size_t MaxQueuedMessages = 256;
