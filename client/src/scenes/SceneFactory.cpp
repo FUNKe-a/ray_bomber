@@ -4,6 +4,7 @@
 #include "LobbyScene.hpp"
 #include "MenuScene.hpp"
 #include "SettingsScene.hpp"
+#include "PlayingScene.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -79,6 +80,22 @@ namespace
     private:
         GameSession& session;
     };
+
+    class PlayingSceneCreator final : public SceneCreator
+    {
+    public:
+        explicit PlayingSceneCreator(GameSession& session): session(session)
+        {
+        }
+
+        std::unique_ptr<Scene> create(std::string) const override
+        {
+            return std::make_unique<PlayingScene>(session);
+        }
+
+    private:
+        GameSession& session;
+    };
 }
 
 SceneFactory::SceneFactory(
@@ -87,31 +104,23 @@ SceneFactory::SceneFactory(
 )
 {
     creators.emplace(
-        SceneType::Menu,
-        std::make_unique<MenuSceneCreator>(
-            session, settings
-        )
+        SceneType::Menu, std::make_unique<MenuSceneCreator>(session, settings)
     );
 
     creators.emplace(
-        SceneType::Settings,
-        std::make_unique<SettingsSceneCreator>(
-            settings
-        )
+        SceneType::Settings, std::make_unique<SettingsSceneCreator>(settings)
     );
 
     creators.emplace(
-        SceneType::Connecting,
-        std::make_unique<ConnectingSceneCreator>(
-            session
-        )
+        SceneType::Connecting, std::make_unique<ConnectingSceneCreator>(session)
     );
 
     creators.emplace(
-        SceneType::Lobby,
-        std::make_unique<LobbySceneCreator>(
-            session
-        )
+        SceneType::Lobby, std::make_unique<LobbySceneCreator>(session)
+    );
+
+    creators.emplace(
+        SceneType::Playing, std::make_unique<PlayingSceneCreator>(session)
     );
 }
 

@@ -87,6 +87,11 @@ std::optional<SceneTransition> LobbyScene::update()
         SceneTransition{SceneType::Menu, {}};
     }
 
+    if (state == GameSession::State::Playing)
+    {
+        return SceneTransition{SceneType::Playing, {}};
+    }
+
     if (state == GameSession::State::Joined)
     {
         const Game& game = session.getGame();
@@ -237,7 +242,9 @@ void LobbyScene::render() const
         DrawText("Waiting for players...", left + 12, y, 20, GRAY);
     }
 
-    if (session.getState() == GameSession::State::Joined)
+    const auto state = session.getState();
+
+    if (state == GameSession::State::Joined)
     {
         if (game.isLocalPlayerLeader())
         {
@@ -254,6 +261,19 @@ void LobbyScene::render() const
         }
     }
 
+    if (state == GameSession::State::PreparingMatch ||
+        state == GameSession::State::WaitingForMatchStart)
+    {
+        UI::drawCenteredText(
+            startButtonRectangle(),
+            state == GameSession::State::PreparingMatch
+                ? "Preparing match..."
+                : "Waiting for players...",
+            20,
+            GRAY
+        );
+    }
+    
     UI::drawButton(
         disconnectButton(),
         "Disconnect",
