@@ -14,6 +14,7 @@ target_sources(ray_bomber
   PRIVATE
     Application.cpp
     main.cpp
+    application/ConnectionSettings.hpp
     application/Scene.hpp
     scenes/ConnectingScene.cpp
     scenes/ConnectingScene.hpp
@@ -21,6 +22,8 @@ target_sources(ray_bomber
     scenes/MenuScene.hpp
     scenes/LobbyScene.cpp
     scenes/LobbyScene.hpp
+    scenes/SettingsScene.cpp
+    scenes/SettingsScene.hpp
 )
 
 target_include_directories(ray_bomber

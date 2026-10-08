@@ -3,15 +3,14 @@
 #include "Scene.hpp"
 
 #include <memory>
-#include <string>
 
 class GameSession;
 struct ConnectionSettings;
 
-class ConnectingScene final : public Scene
+class SettingsScene final : public Scene
 {
 public:
-    ConnectingScene(
+    SettingsScene(
         GameSession& session,
         ConnectionSettings& settings
     );
@@ -20,6 +19,17 @@ public:
     void render() const override;
 
 private:
+    enum class InputField
+    {
+        ServerAddress,
+        Port,
+        PlayerName
+    };
+
+    void handleTextInput();
+
     GameSession& session;
     ConnectionSettings& settings;
+
+    InputField activeField = InputField::ServerAddress;
 };

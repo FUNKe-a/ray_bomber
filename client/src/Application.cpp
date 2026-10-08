@@ -24,7 +24,7 @@ int Application::run()
     InitWindow(ScreenWidth, ScreenHeight, "Ray Bomber");
     SetTargetFPS(TargetFramesPerSecond);
 
-    state = std::make_unique<MenuScene>(session);
+    state = std::make_unique<MenuScene>(session, settings, "");
 
     SetExitKey(KEY_NULL);
 

@@ -15,8 +15,10 @@ void GameSession::connect(
     localName = std::move(playerName);
     game = Game{localName};
 
-    client.connect(address, port);
+    connectStartedAt = Clock::now();
     state = State::Connecting;
+
+    client.connect(address, port);
 }
 
 void GameSession::disconnect()
@@ -49,12 +51,28 @@ void GameSession::update()
     if (state == State::Connecting)
     {
         if (!client.isConnected())
+        {
+            if (Clock::now() - connectStartedAt >= ConnectTimeout)
+            {
+                fail("Connection timed out while connecting.");
+            }
+
             return;
+        }
+
+        joinStartedAt = Clock::now();
 
         client.startReceiving();
         client.joinLobby(localName);
 
-        joinStartedAt = Clock::now();
+        // Sending the request can fail immediately.
+        if (client.getConnectionState() ==
+            Client::ConnectionState::Failed)
+        {
+            fail(client.getError());
+            return;
+        }
+
         state = State::Joining;
     }
 
@@ -84,9 +102,9 @@ void GameSession::update()
     }
 
     if (state == State::Joining &&
-        Clock::now() - joinStartedAt >= std::chrono::seconds{10})
+        Clock::now() - joinStartedAt >= JoinTimeout)
     {
-        fail("No lobby response received within 10 seconds.");
+        fail("Timed out waiting for the server to accept the lobby join.");
     }
 }
 

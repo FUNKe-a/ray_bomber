@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameSession.hpp"
+#include "ConnectionSettings.hpp"
 
 #include <memory>
 
@@ -18,6 +19,7 @@ public:
     int run();
 
 private:
+    ConnectionSettings settings;
     GameSession session;
     std::unique_ptr<Scene> state;
 };

@@ -51,14 +51,9 @@ namespace
 
 LobbyScene::LobbyScene(
     GameSession& session,
-    std::string serverAddress,
-    std::string port,
-    std::string playerName
-)
-    : session(session),
-      serverAddress(std::move(serverAddress)),
-      port(std::move(port)),
-      playerName(std::move(playerName))
+    ConnectionSettings& settings
+) : session(session),
+      settings(settings)
 {
 }
 
@@ -66,10 +61,8 @@ std::unique_ptr<Scene> LobbyScene::returnToMenu(std::string error)
 {
     return std::make_unique<MenuScene>(
         session,
-        std::move(serverAddress),
-        std::move(port),
-        std::move(error),
-        std::move(playerName)
+        settings,
+        std::move(error)
     );
 }
 

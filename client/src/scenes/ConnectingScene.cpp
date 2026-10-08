@@ -9,40 +9,64 @@
 
 #include <memory>
 #include <utility>
+#include <string>
+
+namespace 
+{
+    Rectangle cancelButtonRectangle()
+    {
+        return {
+            GetScreenWidth() / 2.0f - 120.0f,
+            315.0f,
+            240.0f,
+            55.0f
+        };
+    }
+}
+
 
 ConnectingScene::ConnectingScene(
     GameSession& session,
-    std::string serverAddress,
-    std::string port,
-    std::string playerName
+    ConnectionSettings& settings
 )
     : session(session),
-      serverAddress(std::move(serverAddress)),
-      port(std::move(port)),
-      playerName(std::move(playerName))
+      settings(settings)
 {
 }
 
 std::unique_ptr<Scene> ConnectingScene::update()
 {
-    if (session.getState() == GameSession::State::Joined)
+    if (UI::isClicked(cancelButtonRectangle()) ||
+        IsKeyPressed(KEY_ESCAPE))
     {
-        return std::make_unique<LobbyScene>(
-            session, 
-            std::move(serverAddress),
-            std::move(port),
-            std::move(playerName)
+        session.disconnect();
+        return std::make_unique<MenuScene>(session, settings, "");
+    }
+
+    const auto state = session.getState();
+
+    if (state == GameSession::State::Joined)
+    {
+        return std::make_unique<LobbyScene>(session, settings);
+    }
+
+    if (state == GameSession::State::Failed)
+    {
+        session.disconnect();
+
+        return std::make_unique<MenuScene>(
+            session,
+            settings,
+            "Unable to connect to the server."
         );
     }
 
-    if (session.getState() == GameSession::State::Failed)
+    if (state == GameSession::State::Disconnected)
     {
         return std::make_unique<MenuScene>(
             session,
-            std::move(serverAddress),
-            std::move(port),
-            session.getError(),
-            std::move(playerName)
+            settings,
+            "Disconnected from server."
         );
     }
 
@@ -60,12 +84,14 @@ void ConnectingScene::render() const
     UI::drawCenteredText(
         Rectangle{
             0.0f,
-            0.0f,
+            220.0f,
             static_cast<float>(GetScreenWidth()),
-            static_cast<float>(GetScreenHeight())
+            30.0f
         },
         text,
         30,
         DARKGRAY
     );
+
+    UI::drawButton(cancelButtonRectangle(), "CANCEL");
 }
