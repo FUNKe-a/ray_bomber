@@ -1,7 +1,7 @@
 #include "SettingsScene.hpp"
 
 #include "ConnectionSettings.hpp"
-#include "MenuScene.hpp"
+#include "SceneFactory.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
@@ -57,20 +57,15 @@ namespace
     }
 }
 
-SettingsScene::SettingsScene(
-    GameSession& session,
-    ConnectionSettings& settings
-)
-    : session(session),
-      settings(settings)
+SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
 {
 }
 
-std::unique_ptr<Scene> SettingsScene::update()
+std::optional<SceneTransition> SettingsScene::update()
 {
     if (UI::isClicked(backButtonRectangle()) || IsKeyPressed(KEY_ESCAPE))
     {
-        return std::make_unique<MenuScene>(session, settings, "");
+        return SceneTransition{SceneType::Menu, {}};
     }
 
     if (UI::isClicked(addressRectangle()))
@@ -87,7 +82,7 @@ std::unique_ptr<Scene> SettingsScene::update()
     }
 
     handleTextInput();
-    return nullptr;
+    return std::nullopt;
 }
 
 void SettingsScene::handleTextInput()

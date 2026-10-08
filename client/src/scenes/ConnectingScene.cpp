@@ -1,7 +1,5 @@
 #include "ConnectingScene.hpp"
 
-#include "MenuScene.hpp"
-#include "LobbyScene.hpp"
 #include "GameSession.hpp"
 #include "UI.hpp"
 
@@ -25,52 +23,38 @@ namespace
 }
 
 
-ConnectingScene::ConnectingScene(
-    GameSession& session,
-    ConnectionSettings& settings
-)
-    : session(session),
-      settings(settings)
+ConnectingScene::ConnectingScene(GameSession& session): session(session)
 {
 }
 
-std::unique_ptr<Scene> ConnectingScene::update()
+std::optional<SceneTransition> ConnectingScene::update()
 {
     if (UI::isClicked(cancelButtonRectangle()) ||
         IsKeyPressed(KEY_ESCAPE))
     {
         session.disconnect();
-        return std::make_unique<MenuScene>(session, settings, "");
+        return SceneTransition{SceneType::Menu, {}};
     }
 
     const auto state = session.getState();
 
     if (state == GameSession::State::Joined)
     {
-        return std::make_unique<LobbyScene>(session, settings);
+        return SceneTransition{SceneType::Lobby, {}};
     }
 
     if (state == GameSession::State::Failed)
     {
         session.disconnect();
-
-        return std::make_unique<MenuScene>(
-            session,
-            settings,
-            "Unable to connect to the server."
-        );
+        return SceneTransition{SceneType::Menu, "Unable to connect to the server."};
     }
 
     if (state == GameSession::State::Disconnected)
     {
-        return std::make_unique<MenuScene>(
-            session,
-            settings,
-            "Disconnected from server."
-        );
+        SceneTransition{SceneType::Menu, "Disconnected from server."};
     }
 
-    return nullptr;
+    return std::nullopt;
 }
 
 void ConnectingScene::render() const

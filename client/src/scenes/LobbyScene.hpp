@@ -6,22 +6,15 @@
 #include <string>
 
 class GameSession;
-struct ConnectionSettings;
 
 class LobbyScene final : public Scene
 {
 public:
-    explicit LobbyScene(
-        GameSession& session,
-        ConnectionSettings& settings
-    );
+    LobbyScene(GameSession& session);
 
-    std::unique_ptr<Scene> update() override;
+    std::optional<SceneTransition> update() override;
     void render() const override;
 
 private:
-    std::unique_ptr<Scene> returnToMenu(std::string error);
-
     GameSession& session;
-    ConnectionSettings& settings;
 };

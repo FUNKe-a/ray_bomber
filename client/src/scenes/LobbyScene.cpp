@@ -2,7 +2,6 @@
 
 #include "GameSession.hpp"
 #include "GameTypes.hpp"
-#include "MenuScene.hpp"
 
 #include "UI.hpp"
 
@@ -49,24 +48,12 @@ namespace
     }();
 }
 
-LobbyScene::LobbyScene(
-    GameSession& session,
-    ConnectionSettings& settings
-) : session(session),
-      settings(settings)
+LobbyScene::LobbyScene(GameSession& session): session(session)
 {
 }
 
-std::unique_ptr<Scene> LobbyScene::returnToMenu(std::string error)
-{
-    return std::make_unique<MenuScene>(
-        session,
-        settings,
-        std::move(error)
-    );
-}
 
-std::unique_ptr<Scene> LobbyScene::update()
+std::optional<SceneTransition> LobbyScene::update()
 {
     const auto state = session.getState();
 
@@ -76,20 +63,18 @@ std::unique_ptr<Scene> LobbyScene::update()
         std::string error = session.getError();
         session.disconnect();
 
-        return returnToMenu(std::move(error));
+        return SceneTransition{SceneType::Menu, std::move(error)};
     }
 
     if (state == GameSession::State::Disconnected)
     {
-        return returnToMenu("Disconnected from server.");
+        return SceneTransition{SceneType::Menu, "Disconnected from server."};
     }
 
     if (UI::isClicked(disconnectButton()) || IsKeyPressed(KEY_ESCAPE))
     {
         session.disconnect();
-
-        // Leaving intentionally is not an error.
-        return returnToMenu("");
+        SceneTransition{SceneType::Menu, {}};
     }
 
     if (state == GameSession::State::Joined)
@@ -103,7 +88,7 @@ std::unique_ptr<Scene> LobbyScene::update()
         }
     }
 
-    return nullptr;
+    return std::nullopt;
 }
 
 void LobbyScene::render() const

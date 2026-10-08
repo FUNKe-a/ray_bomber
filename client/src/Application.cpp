@@ -1,7 +1,6 @@
 #include "Application.hpp"
 
 #include "Scene.hpp"
-#include "MenuScene.hpp"
 
 #include <raylib.h>
 
@@ -14,7 +13,10 @@ namespace
     constexpr int TargetFramesPerSecond = 60;
 }
 
-Application::Application() = default;
+Application::Application()
+    : factory(session, settings)
+{
+}
 
 Application::~Application() = default;
 
@@ -24,7 +26,7 @@ int Application::run()
     InitWindow(ScreenWidth, ScreenHeight, "Ray Bomber");
     SetTargetFPS(TargetFramesPerSecond);
 
-    state = std::make_unique<MenuScene>(session, settings, "");
+    scene = factory.create(SceneType::Menu);
 
     SetExitKey(KEY_NULL);
 
@@ -32,22 +34,25 @@ int Application::run()
     {
         session.update();
 
-        auto nextState = state->update();
-
-        if (nextState)
+        if (auto transition = scene->update())
         {
-            state = std::move(nextState);
+            auto nextScene = factory.create(
+                transition->target,
+                std::move(transition->errorMessage)
+            );
+
+            scene = std::move(nextScene);
         }
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        state->render();
+        scene->render();
 
         EndDrawing();
     }
 
-    state.reset();
+    scene.reset();
     session.disconnect();
     CloseWindow();
 

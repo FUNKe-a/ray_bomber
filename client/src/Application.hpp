@@ -2,6 +2,7 @@
 
 #include "GameSession.hpp"
 #include "ConnectionSettings.hpp"
+#include "SceneFactory.hpp"
 
 #include <memory>
 
@@ -21,5 +22,6 @@ public:
 private:
     ConnectionSettings settings;
     GameSession session;
-    std::unique_ptr<Scene> state;
+    SceneFactory factory;
+    std::unique_ptr<Scene> scene;
 };

@@ -1,9 +1,7 @@
 #include "MenuScene.hpp"
 
-#include "ConnectingScene.hpp"
 #include "ConnectionSettings.hpp"
 #include "GameSession.hpp"
-#include "SettingsScene.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
@@ -44,11 +42,11 @@ MenuScene::MenuScene(
 {
 }
 
-std::unique_ptr<Scene> MenuScene::update()
+std::optional<SceneTransition> MenuScene::update()
 {
     if (UI::isClicked(settingsButtonRectangle()))
     {
-        return std::make_unique<SettingsScene>(session, settings);
+       return SceneTransition(SceneType::Settings, {});
     }
 
     if (UI::isClicked(connectButtonRectangle()))
@@ -58,7 +56,7 @@ std::unique_ptr<Scene> MenuScene::update()
 
         if (!port)
         {
-            return nullptr;
+            return std::nullopt;
         }
 
         session.connect(
@@ -67,10 +65,10 @@ std::unique_ptr<Scene> MenuScene::update()
             settings.playerName
         );
 
-        return std::make_unique<ConnectingScene>(session, settings);
+        return SceneTransition{SceneType::Connecting, {}};
     }
 
-    return nullptr;
+    return std::nullopt;
 }
 
 void MenuScene::render() const

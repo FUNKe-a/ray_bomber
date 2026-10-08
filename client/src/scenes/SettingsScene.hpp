@@ -4,18 +4,14 @@
 
 #include <memory>
 
-class GameSession;
 struct ConnectionSettings;
 
 class SettingsScene final : public Scene
 {
 public:
-    SettingsScene(
-        GameSession& session,
-        ConnectionSettings& settings
-    );
+    SettingsScene(ConnectionSettings& settings);
 
-    std::unique_ptr<Scene> update() override;
+    std::optional<SceneTransition> update() override;
     void render() const override;
 
 private:
@@ -28,7 +24,6 @@ private:
 
     void handleTextInput();
 
-    GameSession& session;
     ConnectionSettings& settings;
 
     InputField activeField = InputField::ServerAddress;

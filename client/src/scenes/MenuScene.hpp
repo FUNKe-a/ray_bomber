@@ -14,10 +14,10 @@ public:
     MenuScene(
         GameSession& session,
         ConnectionSettings& settings,
-        std::string errorMessage
+        std::string errorMessage = ""
     );
 
-    std::unique_ptr<Scene> update() override;
+    std::optional<SceneTransition> update() override;
     void render() const override;
 
 private:
