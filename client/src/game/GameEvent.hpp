@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <string>
 #include <variant>
+#include <vector>
 
 struct LobbyJoined {
     std::uint32_t id;
@@ -27,23 +28,42 @@ struct PlayerReadyChanged {
     bool ready;
 };
 
-struct PlayerSpawned {
-    std::uint32_t id;
-    int x;
-    int y;
-};
-
 struct PlayerMoved {
     std::uint32_t id;
     int x;
     int y;
 };
 
+struct LobbyLeaderChanged
+{
+    std::uint32_t id;
+};
+
+struct MatchPreparationStarted {};
+
+struct PlayerSpawn
+{
+    std::uint32_t id;
+    int x;
+    int y;
+};
+
+struct MatchSetupReceived
+{
+    std::vector<PlayerSpawn> spawns;
+};
+
+struct MatchStarted {};
+
 using GameEvent = std::variant<
     LobbyJoined,
+    LobbyLeaderChanged,
     PlayerJoined,
     PlayerLeft,
     PlayerReadyChanged,
-    PlayerSpawned,
-    PlayerMoved
+    PlayerSpawn,
+    PlayerMoved,
+    MatchPreparationStarted,
+    MatchSetupReceived,
+    MatchStarted
 >;

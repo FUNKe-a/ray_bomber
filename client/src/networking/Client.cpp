@@ -146,6 +146,16 @@ void Client::move(Direction direction)
     send(ProtobufAdapter::makeMove(direction));
 }
 
+void Client::requestGameStart()
+{
+    send(ProtobufAdapter::makeGameStart());
+}
+
+void Client::matchReady()
+{
+    send(ProtobufAdapter::makeMatchReady());
+}
+
 void Client::send(const Envelope& message)
 {
     if (!isConnected() || !session) return;
@@ -154,6 +164,8 @@ void Client::send(const Envelope& message)
         case Envelope::kJoinLobbyRequest:
         case Envelope::kUpdateReadyState:
         case Envelope::kMoveRequest:
+        case Envelope::kGameStartRequest:
+        case Envelope::kClientMatchReady:
             break;
         default:
             fail(session, "Cannot send a server payload as a request.");

@@ -32,6 +32,9 @@ public:
     void joinLobby(const std::string& name);
     void setReady(bool ready);
     void move(Direction direction);
+    void requestGameStart();
+    void matchReady();
+
     bool receive(GameEvent& event);
 
 private:

@@ -51,6 +51,20 @@ Envelope ProtobufAdapter::makeMove(Direction direction)
     return message;
 }
 
+Envelope ProtobufAdapter::makeGameStart()
+{
+    Envelope message;
+    message.mutable_game_start_request();
+    return message;
+}
+
+Envelope ProtobufAdapter::makeMatchReady()
+{
+    Envelope message;
+    message.mutable_client_match_ready();
+    return message;
+}
+
 std::optional<GameEvent> ProtobufAdapter::decode(
     const Envelope& message)
 {
@@ -99,6 +113,11 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                     };
                 }
 
+                case lobby::PlayerEvent::kSetLeader:
+                    return GameEvent{
+                        LobbyLeaderChanged{event.id()}
+                    };
+
                 case lobby::PlayerEvent::kLeft:
                     return GameEvent{
                         PlayerLeft{
@@ -115,19 +134,33 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                         }
                     };
 
-                // case player::PlayerEvent::kSpawned:
-                //     return GameEvent{
-                //         PlayerSpawned{
-                //             event.id(),
-                //             event.spawned().x(),
-                //             event.spawned().y()
-                //         }
-                //     };
-
                 default:
                     return std::nullopt;
             }
         }
+
+        case Envelope::kGameStart:
+            return GameEvent{MatchPreparationStarted{}};
+
+        case Envelope::kMatchSetup:
+        {
+            MatchSetupReceived setup;
+            setup.spawns.reserve(message.match_setup().spawns_size());
+
+            for (const auto& spawn : message.match_setup().spawns())
+            {
+                setup.spawns.push_back(PlayerSpawn{
+                    spawn.player_id(),
+                    spawn.x(),
+                    spawn.y()
+                });
+            }
+
+            return GameEvent{std::move(setup)};
+        }
+
+        case Envelope::kStartMatch:
+            return GameEvent{MatchStarted{}};
 
         default:
             return std::nullopt;
