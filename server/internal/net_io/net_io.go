@@ -2,12 +2,14 @@ package netio
 
 import (
 	"encoding/binary"
+	"errors"
+	"io"
+	"iter"
+	"net"
+	"time"
+
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	"google.golang.org/protobuf/proto"
-	"io"
-	"net"
-	"iter"
-	"errors"
 )
 
 func serialize(envelope *protocol.Envelope) ([]byte, error) {
@@ -41,25 +43,27 @@ func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
 }
 
 func SendMessage(conn net.Conn, envelope *protocol.Envelope) error {
-	msg, err := serialize(envelope)
+	packet, err := serialize(envelope)
 	if err != nil {
 		return err
 	}
 
-	_, err = conn.Write(msg)
-	return err
+	return writePacket(conn, packet)
 }
 
-func BroadcastMessage(player_conns iter.Seq[net.Conn], envelope *protocol.Envelope) error {
-	msg, err := serialize(envelope)
+func BroadcastMessage(
+	playerConns iter.Seq[net.Conn],
+	envelope *protocol.Envelope,
+) error {
+	packet, err := serialize(envelope)
 	if err != nil {
 		return err
 	}
 
 	var errs []error
-	for conn := range player_conns {
-		_, err := conn.Write(msg)
-		if err != nil {
+
+	for conn := range playerConns {
+		if err := writePacket(conn, packet); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -67,3 +71,31 @@ func BroadcastMessage(player_conns iter.Seq[net.Conn], envelope *protocol.Envelo
 	return errors.Join(errs...)
 }
 
+func writePacket(conn net.Conn, packet []byte) error {
+	if err := conn.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		conn.Close()
+		return err
+	}
+
+	defer func() {
+		_ = conn.SetWriteDeadline(time.Time{})
+	}()
+
+	for len(packet) > 0 {
+		n, err := conn.Write(packet)
+
+		if err != nil {
+			conn.Close()
+			return err
+		}
+
+		if n == 0 {
+			conn.Close()
+			return io.ErrShortWrite
+		}
+
+		packet = packet[n:]
+	}
+
+	return nil
+}
