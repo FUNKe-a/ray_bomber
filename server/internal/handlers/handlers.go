@@ -87,24 +87,6 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 			return err
 		}
 
-		existingSpawnEvent := &protocol.Envelope{
-			Payload: &protocol.Envelope_PlayerEvent{
-				PlayerEvent: &protocol.PlayerEvent{
-					Id: existingPlayer.ID,
-					EventType: &protocol.PlayerEvent_Spawned{
-						Spawned: &protocol.PlayerSpawned{
-							X: existingPlayer.X,
-							Y: existingPlayer.Y,
-						},
-					},
-				},
-			},
-		}
-
-		if err := netio.SendMessage(conn, existingSpawnEvent); err != nil {
-			return err
-		}
-
 		if existingPlayer.IsReady {
 			existingReadyEvent := &protocol.Envelope{
 				Payload: &protocol.Envelope_PlayerEvent{
@@ -123,7 +105,6 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 				return err
 			}
 		}
-
 	}
 
 	broadcast := &protocol.Envelope{
@@ -140,24 +121,6 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 		},
 	}
 	if err := netio.BroadcastMessage(maps.Keys(match.Players), broadcast); err != nil {
-		return err
-	}
-
-	spawnBroadcast := &protocol.Envelope{
-		Payload: &protocol.Envelope_PlayerEvent{
-			PlayerEvent: &protocol.PlayerEvent{
-				Id: id,
-				EventType: &protocol.PlayerEvent_Spawned{
-					Spawned: &protocol.PlayerSpawned{
-						X: match.Players[conn].X,
-						Y: match.Players[conn].Y,
-					},
-				},
-			},
-		},
-	}
-
-	if err := netio.BroadcastMessage(maps.Keys(match.Players), spawnBroadcast); err != nil {
 		return err
 	}
 

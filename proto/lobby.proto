@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package lobby;
+
+import "player.proto";
+
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+// Server
+message GameStart {}
+
+message PlayerJoined {
+  string username = 2;
+  player.Color color = 3;
+}
+message PlayerLeft {
+  string reason = 1;
+}
+message PlayerReady {
+ bool is_ready = 1;
+}
+message PlayerSetLeader {}
+
+message PlayerEvent {
+  uint32 id = 1;
+
+  oneof event_type {
+    PlayerJoined joined = 2;
+    PlayerLeft left = 3;
+    PlayerReady ready = 4;
+    PlayerSetLeader set_leader = 5;
+  }
+}
+
+message JoinLobbyResponse {
+  uint32 id = 1;
+  player.Color color = 3;
+}
+
+// Client
+message GameStartRequest {}
+
+message JoinLobbyRequest {
+  string username = 1;
+}
+
+message UpdateReadyState {
+  bool is_ready = 1;
+}

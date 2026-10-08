@@ -7,6 +7,8 @@ file(MAKE_DIRECTORY "${PROTO_GENERATED_DIR}")
 
 add_library(proto_files STATIC
     "${PROTO_SOURCE_DIR}/envelope.proto"
+    "${PROTO_SOURCE_DIR}/lobby.proto"
+    "${PROTO_SOURCE_DIR}/match.proto"
     "${PROTO_SOURCE_DIR}/player.proto"
 )
 
