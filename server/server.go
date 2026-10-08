@@ -91,12 +91,12 @@ func messageHandler(match *gamelogic.GameMatch, messages <-chan MsgWrapper) {
 
 			case *protocol.Envelope_GameStartRequest:
 				err = handlers.HandleGameStartRequest(
-					match, wrapper.Conn, msg.GameStartRequest,
+					match, wrapper.Conn,
 				)
 
 			case *protocol.Envelope_ClientMatchReady:
 				err = handlers.HandleClientMatchReady(
-					match, wrapper.Conn, msg.ClientMatchReady,
+					match, wrapper.Conn,
 				)
 			}
 		}

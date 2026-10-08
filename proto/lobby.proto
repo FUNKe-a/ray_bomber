@@ -35,6 +35,7 @@ message PlayerEvent {
 message JoinLobbyResponse {
   uint32 id = 1;
   player.Color color = 3;
+  repeated player.PlayerInfo players = 4;
 }
 
 // Client

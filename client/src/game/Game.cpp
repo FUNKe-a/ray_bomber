@@ -29,6 +29,12 @@ void Game::apply(const LobbyJoined& event)
         participant.setName(localName);
 
     participant.setColor(event.color);
+
+	for (const auto& player : event.players) {
+		auto& other = ensurePlayer(player.id);
+		other.setName(player.username);
+		other.setColor(player.color);
+	}
 }
 
 void Game::apply(const PlayerJoined& event)
