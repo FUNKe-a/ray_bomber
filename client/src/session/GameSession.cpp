@@ -1,8 +1,48 @@
 #include "GameSession.hpp"
-
+#include "Map.hpp"
 #include "GameEvent.hpp"
 
 #include <utility>
+#include <unordered_set>
+#include <iostream>
+
+namespace
+{
+    bool isValidMatchSetup(
+        const MatchSetupReceived& setup,
+        const Game& game
+    )
+    {
+        if (!game.hasJoinedLobby())
+        {
+            return false;
+        }
+
+        std::unordered_set<std::uint32_t> playerIds;
+        bool includesLocalPlayer = false;
+
+        for (const auto& spawn : setup.spawns)
+        {
+            if (spawn.x < 0 || spawn.x >= Map::Width ||
+                spawn.y < 0 || spawn.y >= Map::Height)
+            {
+                return false;
+            }
+
+            if (!playerIds.insert(spawn.id).second)
+            {
+                return false;
+            }
+
+            if (spawn.id == game.getLocalPlayerId())
+            {
+                includesLocalPlayer = true;
+            }
+        }
+
+        return includesLocalPlayer;
+    }
+}
 
 void GameSession::connect(
     const std::string& address,
@@ -86,6 +126,21 @@ void GameSession::update()
 
     while (client.receive(event))
     {
+        if (const auto* setup = std::get_if<MatchSetupReceived>(&event))
+        {
+            if (state != State::PreparingMatch)
+            {
+                fail("Received match setup outside match preparation.");
+                return;
+            }
+
+            if (!isValidMatchSetup(*setup, game))
+            {
+                fail("Server sent an invalid match setup.");
+                return;
+            }
+        }
+
         game.handleEvent(event);
 
         // Game clears this flag when the local player leaves.
@@ -122,6 +177,16 @@ void GameSession::move(Direction direction)
     {
         client.move(direction);
     }
+}
+
+void GameSession::requestGameStart()
+{
+    if (state != State::Joined || !game.isLocalPlayerLeader())
+    {
+        return;
+    }
+
+    client.requestGameStart();
 }
 
 GameSession::State GameSession::getState() const

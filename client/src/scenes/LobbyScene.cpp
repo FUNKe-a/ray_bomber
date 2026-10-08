@@ -14,6 +14,16 @@
 
 namespace
 {
+    Rectangle startButtonRectangle()
+    {
+        return {
+            GetScreenWidth() / 2.0f - 110.0f,
+            GetScreenHeight() - 130.0f,
+            220.0f,
+            44.0f
+        };
+    }
+
     Rectangle disconnectButton()
     {
         return {
@@ -79,12 +89,17 @@ std::optional<SceneTransition> LobbyScene::update()
 
     if (state == GameSession::State::Joined)
     {
-        const Player* localPlayer =
-            session.getGame().getLocalPlayer();
+        const Game& game = session.getGame();
+        const Player* localPlayer = game.getLocalPlayer();
 
         if (localPlayer && IsKeyPressed(KEY_R))
         {
             session.setReady(!localPlayer->isReady());
+        }
+
+        if (game.isLocalPlayerLeader() && UI::isClicked(startButtonRectangle()))
+        {
+            session.requestGameStart();
         }
     }
 
@@ -173,7 +188,12 @@ void LobbyScene::render() const
             ? "Player " + std::to_string(id)
             : player->getName();
 
-        const std::string suffix = isLocalPlayer ? " (you)" : "";
+        std::string suffix = isLocalPlayer ? " (you)" : "";
+
+        if (game.getLeaderId() == std::optional<std::uint32_t>{id})
+        {
+            suffix += " [Leader]";
+        }
 
         // Keep long names from overlapping the status column.
         const int nameWidth = statusX - (left + 90) - 16;
@@ -215,6 +235,23 @@ void LobbyScene::render() const
     if (ids.empty())
     {
         DrawText("Waiting for players...", left + 12, y, 20, GRAY);
+    }
+
+    if (session.getState() == GameSession::State::Joined)
+    {
+        if (game.isLocalPlayerLeader())
+        {
+            UI::drawButton(startButtonRectangle(), "START GAME");
+        }
+        else
+        {
+            UI::drawCenteredText(
+                startButtonRectangle(),
+                "Waiting for leader",
+                20,
+                GRAY
+            );
+        }
     }
 
     UI::drawButton(

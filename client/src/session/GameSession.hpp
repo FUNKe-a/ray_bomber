@@ -16,6 +16,9 @@ public:
         Connecting,
         Joining,
         Joined,
+        PreparingMatch,
+        WaitingForMatchStart,
+        Playing,
         Failed
     };
 
@@ -30,6 +33,7 @@ public:
 
     void setReady(bool ready);
     void move(Direction direction);
+    void requestGameStart();
 
     State getState() const;
     const std::string& getError() const;

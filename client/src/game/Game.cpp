@@ -44,6 +44,11 @@ void Game::apply(const PlayerLeft& event)
 
     if (joinedLobby && event.id == localPlayerId)
         joinedLobby = false;
+
+    if (leaderId && event.id == *leaderId)
+    {
+        leaderId.reset();
+    }
 }
 
 void Game::apply(const PlayerReadyChanged& event)
@@ -51,7 +56,7 @@ void Game::apply(const PlayerReadyChanged& event)
     ensurePlayer(event.id).setReady(event.ready);
 }
 
-void Game::apply(const PlayerSpawned& event)
+void Game::apply(const PlayerSpawn& event)
 {
     if (event.x < 0 || event.x >= Map::Width ||
         event.y < 0 || event.y >= Map::Height)
@@ -73,14 +78,68 @@ void Game::apply(const PlayerMoved& event)
     ensurePlayer(event.id).setPosition(event.x, event.y);
 }
 
-const Map& Game::getMap() const { return map; }
-const std::unordered_map<std::uint32_t, Player>& Game::getPlayers() const { return players; }
+void Game::apply(const LobbyLeaderChanged& event)
+{
+    leaderId = event.id;
+}
+
+void Game::apply(const MatchPreparationStarted&)
+{
+    // GameSession handles the preparation phase.
+}
+
+void Game::apply(const MatchSetupReceived& event)
+{
+    for (const auto& spawn : event.spawns)
+    {
+        apply(spawn);
+    }
+}
+
+void Game::apply(const MatchStarted&)
+{
+    // GameSession handles the transition to Playing.
+}
+
+const Map& Game::getMap() const 
+{ 
+    return map; 
+}
+
+const std::unordered_map<std::uint32_t, Player>& Game::getPlayers() const 
+{
+    return players; 
+}
+
 const Player* Game::getPlayer(std::uint32_t id) const
 {
     const auto it = players.find(id);
     return it == players.end() ? nullptr : &it->second;
 }
+
 const Player* Game::getLocalPlayer() const
-{ return joinedLobby ? getPlayer(localPlayerId) : nullptr; }
-std::uint32_t Game::getLocalPlayerId() const { return localPlayerId; }
-bool Game::hasJoinedLobby() const { return joinedLobby; }
+{ 
+    return joinedLobby ? getPlayer(localPlayerId) : nullptr; 
+}
+
+std::uint32_t Game::getLocalPlayerId() const 
+{ 
+    return localPlayerId; 
+}
+
+bool Game::hasJoinedLobby() const 
+{ 
+    return joinedLobby;
+}
+
+std::optional<std::uint32_t> Game::getLeaderId() const
+{
+    return leaderId;
+}
+
+bool Game::isLocalPlayerLeader() const
+{
+    return hasJoinedLobby() &&
+           leaderId.has_value() &&
+           *leaderId == getLocalPlayerId();
+}
