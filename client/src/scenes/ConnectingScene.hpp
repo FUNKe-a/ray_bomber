@@ -10,19 +10,11 @@ class GameSession;
 class ConnectingScene final : public Scene
 {
 public:
-    ConnectingScene(
-        GameSession& session,
-        std::string serverAddress,
-        std::string port,
-        std::string playerName
-    );
+    ConnectingScene(GameSession& session);
 
-    std::unique_ptr<Scene> update() override;
+    std::optional<SceneTransition> update() override;
     void render() const override;
 
 private:
     GameSession& session;
-    std::string serverAddress;
-    std::string port;
-    std::string playerName;
 };

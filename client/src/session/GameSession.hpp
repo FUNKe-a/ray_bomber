@@ -46,5 +46,10 @@ private:
     State state = State::Disconnected;
     std::string localName;
     std::string errorMessage;
+    
+    static constexpr std::chrono::seconds ConnectTimeout{10};
+    static constexpr std::chrono::seconds JoinTimeout{10};
+
+    Clock::time_point connectStartedAt{};
     Clock::time_point joinStartedAt{};
 };

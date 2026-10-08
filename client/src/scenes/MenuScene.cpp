@@ -1,275 +1,124 @@
 #include "MenuScene.hpp"
 
-#include "ConnectingScene.hpp"
+#include "ConnectionSettings.hpp"
 #include "GameSession.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
 
-#include <memory>
-#include <stdexcept>
 #include <utility>
-#include <cstdint>
 
 namespace
 {
-    constexpr int InputWidth = 624;
-    constexpr int InputHeight = 50;
-    constexpr int ButtonWidth = 240;
-    constexpr int ButtonHeight = 55;
-
-    Rectangle serverAddressRectangle()
-    {
-        return {
-            (GetScreenWidth() - InputWidth) / 2.0f,
-            155.0f,
-            static_cast<float>(InputWidth),
-            static_cast<float>(InputHeight)
-        };
-    }
-
-    Rectangle portRectangle()
-    {
-        return {
-            (GetScreenWidth() - InputWidth) / 2.0f,
-            245.0f,
-            static_cast<float>(InputWidth),
-            static_cast<float>(InputHeight)
-        };
-    }
-
     Rectangle connectButtonRectangle()
     {
         return {
-            (GetScreenWidth() - ButtonWidth) / 2.0f,
-            430.0f,
-            static_cast<float>(ButtonWidth),
-            static_cast<float>(ButtonHeight)
+            GetScreenWidth() / 2.0f - 120.0f,
+            240.0f,
+            240.0f,
+            55.0f
         };
     }
 
-    Rectangle nameRectangle()
+    Rectangle settingsButtonRectangle()
     {
         return {
-            (GetScreenWidth() - InputWidth) / 2.0f, 335.0f,
-            static_cast<float>(InputWidth), static_cast<float>(InputHeight)
+            GetScreenWidth() / 2.0f - 120.0f,
+            315.0f,
+            240.0f,
+            55.0f
         };
     }
-}
-
-MenuScene::MenuScene(GameSession& session)
-    : MenuScene(session, "127.0.0.1", "6769", "")
-{
 }
 
 MenuScene::MenuScene(
     GameSession& session,
-    std::string serverAddress,
-    std::string port,
-    std::string errorMessage,
-    std::string playerName
+    ConnectionSettings& settings,
+    std::string errorMessage
 )
     : session(session),
-      serverAddress(std::move(serverAddress)),
-      port(std::move(port)),
-      errorMessage(std::move(errorMessage)),
-      playerName(std::move(playerName))
+      settings(settings),
+      errorMessage(std::move(errorMessage))
 {
 }
 
-std::unique_ptr<Scene> MenuScene::update()
+std::optional<SceneTransition> MenuScene::update()
 {
-    const Vector2 mousePosition = GetMousePosition();
-    const Rectangle addressRect = serverAddressRectangle();
-    const Rectangle portRect = portRectangle();
-    const Rectangle buttonRect = connectButtonRectangle();
-    const Rectangle nameRect = nameRectangle();
-
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    if (UI::isClicked(settingsButtonRectangle()))
     {
-        if (CheckCollisionPointRec(mousePosition, addressRect))
-        {
-            activeField = InputField::ServerAddress;
-        }
-        else if (CheckCollisionPointRec(mousePosition, portRect))
-        {
-            activeField = InputField::Port;
-        }
-        else if (CheckCollisionPointRec(mousePosition, nameRect))
-        {
-            activeField = InputField::PlayerName;
-        }
+       return SceneTransition(SceneType::Settings, {});
     }
 
-    handleTextInput();
-
-    if (!CheckCollisionPointRec(mousePosition, buttonRect) ||
-        !IsMouseButtonPressed(MOUSE_BUTTON_LEFT) ||
-        !validateConnectionDetails())
+    if (UI::isClicked(connectButtonRectangle()))
     {
-        return nullptr;
-    }
+        const auto port =
+            validateConnectionSettings(settings, errorMessage);
 
-    const auto serverPort = static_cast<std::uint16_t>(std::stoi(port));
-
-    session.connect(serverAddress, serverPort, playerName);
-
-    return std::make_unique<ConnectingScene>(
-        session,
-        serverAddress,
-        port,
-        playerName
-    );
-}
-
-void MenuScene::handleTextInput()
-{
-    int character = GetCharPressed();
-
-    while (character > 0)
-    {
-        if (activeField == InputField::ServerAddress)
+        if (!port)
         {
-            const bool isAddressCharacter =
-                (character >= '0' && character <= '9') ||
-                (character >= 'a' && character <= 'z') ||
-                (character >= 'A' && character <= 'Z') ||
-                character == '.' ||
-                character == '-' ||
-                character == ':';
-
-            if (isAddressCharacter && serverAddress.size() < 255)
-            {
-                serverAddress += static_cast<char>(character);
-            }
-        }
-        else if (activeField == InputField::PlayerName)
-        {
-            // Initial UI accepts printable ASCII, which is valid UTF-8.
-            if (character >= 32 && character <= 126 && playerName.size() < 32)
-                playerName += static_cast<char>(character);
-        }
-        else if (character >= '0' &&
-                 character <= '9' &&
-                 port.size() < 5)
-        {
-            port += static_cast<char>(character);
+            return std::nullopt;
         }
 
-        character = GetCharPressed();
+        session.connect(
+            settings.serverAddress,
+            *port,
+            settings.playerName
+        );
+
+        return SceneTransition{SceneType::Connecting, {}};
     }
 
-    if (!IsKeyPressed(KEY_BACKSPACE))
-    {
-        return;
-    }
-
-    std::string& value = activeField == InputField::ServerAddress
-        ? serverAddress
-        : activeField == InputField::Port ? port : playerName;
-
-    if (!value.empty())
-    {
-        value.pop_back();
-    }
-}
-
-bool MenuScene::validateConnectionDetails()
-{
-    if (playerName.empty() || playerName.find_first_not_of(' ') == std::string::npos)
-    {
-        errorMessage = "Enter a player name.";
-        return false;
-    }
-    if (serverAddress.empty())
-    {
-        errorMessage = "Enter a server address.";
-        return false;
-    }
-
-    if (port.empty())
-    {
-        errorMessage = "Enter a server port.";
-        return false;
-    }
-
-    try
-    {
-        const int portNumber = std::stoi(port);
-
-        if (portNumber < 1 || portNumber > 65535)
-        {
-            errorMessage = "Port must be between 1 and 65535.";
-            return false;
-        }
-    }
-    catch (const std::exception&)
-    {
-        errorMessage = "Invalid port.";
-        return false;
-    }
-
-    errorMessage.clear();
-    return true;
+    return std::nullopt;
 }
 
 void MenuScene::render() const
 {
+    const float width = static_cast<float>(GetScreenWidth());
+
     UI::drawCenteredText(
-        Rectangle{0.0f, 55.0f, static_cast<float>(GetScreenWidth()), 40.0f},
+        Rectangle{0.0f, 55.0f, width, 40.0f},
         "RAY BOMBER",
         40,
         DARKGRAY
     );
 
-    const Rectangle addressRect = serverAddressRectangle();
-    const Rectangle portRect = portRectangle();
-    const Rectangle nameRect = nameRectangle();
-    const Rectangle buttonRect = connectButtonRectangle();
+    const auto drawSetting = [&](float y, const std::string& label,
+                                const std::string& value)
+    {
+        std::string text = label + (value.empty() ? "(not set)" : value);
+        const int maxWidth = GetScreenWidth() - 96;
 
-    DrawText(
-        "Server Address",
-        static_cast<int>(addressRect.x),
-        static_cast<int>(addressRect.y) - 28,
-        20,
-        GRAY
-    );
+        // Keep long server addresses inside the menu.
+        if (MeasureText(text.c_str(), 20) > maxWidth)
+        {
+            while (!text.empty() &&
+                MeasureText((text + "...").c_str(), 20) > maxWidth)
+            {
+                text.pop_back();
+            }
 
-    UI::drawTextField(addressRect, serverAddress,
-        activeField == InputField::ServerAddress
-    );
+            text += "...";
+        }
 
-    DrawText(
-        "Port",
-        static_cast<int>(portRect.x),
-        static_cast<int>(portRect.y) - 28,
-        20,
-        GRAY
-    );
+        UI::drawCenteredText(
+            Rectangle{48.0f, y, width - 96.0f, 20.0f},
+            text,
+            20,
+            UI::DefaultTheme.mutedText
+        );
+    };
 
-    UI::drawTextField(portRect, port, activeField == InputField::Port);
+    drawSetting(125.0f, "Server: ", settings.serverAddress);
+    drawSetting(155.0f, "Port: ", settings.port);
+    drawSetting(185.0f, "Player: ", settings.playerName);
 
-    DrawText(
-        "Player Name",
-        static_cast<int>(nameRect.x),
-        static_cast<int>(nameRect.y) - 28,
-        20,
-        GRAY
-    );
-
-    UI::drawTextField(nameRect, playerName, activeField == InputField::PlayerName);
-
-    UI::drawButton(buttonRect, "CONNECT");
+    UI::drawButton(connectButtonRectangle(), "CONNECT");
+    UI::drawButton(settingsButtonRectangle(), "SETTINGS");
 
     if (!errorMessage.empty())
     {
         UI::drawCenteredText(
-            Rectangle{
-                0.0f,
-                515.0f,
-                static_cast<float>(GetScreenWidth()),
-                20.0f
-            },
+            Rectangle{0.0f, 430.0f, width, 20.0f},
             errorMessage,
             20,
             RED

@@ -14,13 +14,19 @@ target_sources(ray_bomber
   PRIVATE
     Application.cpp
     main.cpp
+    application/ConnectionSettings.hpp
     application/Scene.hpp
+    application/SceneTransition.hpp
     scenes/ConnectingScene.cpp
     scenes/ConnectingScene.hpp
     scenes/MenuScene.cpp
     scenes/MenuScene.hpp
     scenes/LobbyScene.cpp
     scenes/LobbyScene.hpp
+    scenes/SettingsScene.cpp
+    scenes/SettingsScene.hpp
+    scenes/SceneFactory.cpp
+    scenes/SceneFactory.hpp
 )
 
 target_include_directories(ray_bomber
