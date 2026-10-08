@@ -27,6 +27,8 @@ target_sources(ray_bomber
     scenes/SettingsScene.hpp
     scenes/SceneFactory.cpp
     scenes/SceneFactory.hpp
+    scenes/PlayingScene.cpp
+    scenes/PlayingScene.hpp
 )
 
 target_include_directories(ray_bomber

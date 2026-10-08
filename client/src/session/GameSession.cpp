@@ -126,6 +126,18 @@ void GameSession::update()
 
     while (client.receive(event))
     {
+        if (std::holds_alternative<MatchPreparationStarted>(event))
+        {
+            if (state != State::Joined)
+            {
+                fail("Received game start outside the lobby.");
+                return;
+            }
+
+            state = State::PreparingMatch;
+            continue;
+        }
+
         if (const auto* setup = std::get_if<MatchSetupReceived>(&event))
         {
             if (state != State::PreparingMatch)
@@ -139,20 +151,44 @@ void GameSession::update()
                 fail("Server sent an invalid match setup.");
                 return;
             }
+
+            game.handleEvent(event);
+
+            // Current preparation consists of applying spawn positions.
+            client.matchReady();
+
+            if (client.getConnectionState() == Client::ConnectionState::Failed)
+            {
+                fail(client.getError());
+                return;
+            }
+
+            state = State::WaitingForMatchStart;
+            continue;
+        }
+
+        if (std::holds_alternative<MatchStarted>(event))
+        {
+            if (state != State::WaitingForMatchStart)
+            {
+                fail("Received match start before preparation completed.");
+                return;
+            }
+
+            state = State::Playing;
+            continue;
         }
 
         game.handleEvent(event);
 
-        // Game clears this flag when the local player leaves.
-        if (state == State::Joined && !game.hasJoinedLobby())
-        {
-            fail("You are no longer in the lobby.");
-            return;
-        }
-
         if (state == State::Joining && game.hasJoinedLobby())
         {
             state = State::Joined;
+        }
+        else if (state != State::Joining && !game.hasJoinedLobby())
+        {
+            fail("You are no longer in the game.");
+            return;
         }
     }
 
@@ -173,7 +209,7 @@ void GameSession::setReady(bool ready)
 
 void GameSession::move(Direction direction)
 {
-    if (state == State::Joined)
+    if (state == State::Playing)
     {
         client.move(direction);
     }

@@ -40,4 +40,3 @@ func main() {
 
 	fmt.Println("Successfully generated proto files.")
 }
-
