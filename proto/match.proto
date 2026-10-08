@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package match;
+
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+// Server
+message PlayerSpawnInfo {
+  uint32 player_id = 1;
+  int32 x = 2;
+  int32 y = 3;
+}
+message MatchSetup {
+  repeated PlayerSpawnInfo spawns = 1;
+}
+message StartMatch {}
+
+message PlayerMovement {
+  uint32 id = 1;
+  int32 x = 2;
+  int32 y = 3;
+}
+
+// Client
+message ClientMatchReady {}
+
+message MoveRequest {
+  enum Direction {
+    UNKNOWN = 0;
+    UP = 1;
+    RIGHT = 2;
+    DOWN = 3;
+    LEFT = 4;
+  }
+
+  Direction direction = 1;
+}

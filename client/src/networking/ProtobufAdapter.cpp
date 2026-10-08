@@ -15,13 +15,13 @@ namespace {
         }
     }
 
-    player::MoveRequest::Direction encodeDirection(Direction direction)
+    match::MoveRequest::Direction encodeDirection(Direction direction)
     {
         switch (direction) {
-            case Direction::Up:    return player::MoveRequest::UP;
-            case Direction::Right: return player::MoveRequest::RIGHT;
-            case Direction::Down:  return player::MoveRequest::DOWN;
-            case Direction::Left:  return player::MoveRequest::LEFT;
+            case Direction::Up:    return match::MoveRequest::UP;
+            case Direction::Right: return match::MoveRequest::RIGHT;
+            case Direction::Down:  return match::MoveRequest::DOWN;
+            case Direction::Left:  return match::MoveRequest::LEFT;
         }
 
         throw std::invalid_argument("Invalid movement direction.");
@@ -83,7 +83,7 @@ std::optional<GameEvent> ProtobufAdapter::decode(
             const auto& event = message.player_event();
 
             switch (event.event_type_case()) {
-                case player::PlayerEvent::kJoined: {
+                case lobby::PlayerEvent::kJoined: {
                     const auto& joined = event.joined();
                     const auto color = decodeColor(joined.color());
 
@@ -99,7 +99,7 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                     };
                 }
 
-                case player::PlayerEvent::kLeft:
+                case lobby::PlayerEvent::kLeft:
                     return GameEvent{
                         PlayerLeft{
                             event.id(),
@@ -107,7 +107,7 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                         }
                     };
 
-                case player::PlayerEvent::kReady:
+                case lobby::PlayerEvent::kReady:
                     return GameEvent{
                         PlayerReadyChanged{
                             event.id(),
@@ -115,14 +115,14 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                         }
                     };
 
-                case player::PlayerEvent::kSpawned:
-                    return GameEvent{
-                        PlayerSpawned{
-                            event.id(),
-                            event.spawned().x(),
-                            event.spawned().y()
-                        }
-                    };
+                // case player::PlayerEvent::kSpawned:
+                //     return GameEvent{
+                //         PlayerSpawned{
+                //             event.id(),
+                //             event.spawned().x(),
+                //             event.spawned().y()
+                //         }
+                //     };
 
                 default:
                     return std::nullopt;
