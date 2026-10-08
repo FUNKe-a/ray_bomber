@@ -2,12 +2,11 @@ package handlers
 
 import (
 	"errors"
-	"maps"
-	"net"
-	"fmt"
 	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
+	"maps"
+	"net"
 )
 
 type HandlerFunc func(match *gamelogic.GameMatch, conn net.Conn, payload any) error
@@ -68,13 +67,13 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 		return err
 	}
 
-	players := make([]*protocol.PlayerInfo, 0, len(match.Players) - 1)
+	players := make([]*protocol.PlayerInfo, 0, len(match.Players)-1)
 	for _, p := range match.Players {
 		if p.ID != id {
 			info := &protocol.PlayerInfo{
-				Id: p.ID,
+				Id:       p.ID,
 				Username: p.Username,
-				Color: p.Color,
+				Color:    p.Color,
 			}
 			players = append(players, info)
 		}
@@ -83,9 +82,10 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 	response := &protocol.Envelope{
 		Payload: &protocol.Envelope_JoinLobbyResponse{
 			JoinLobbyResponse: &protocol.JoinLobbyResponse{
-				Id:    id,
-				Color: color,
-				Players: players,
+				Id:       id,
+				LeaderId: match.LeaderID,
+				Color:    color,
+				Players:  players,
 			},
 		},
 	}
@@ -109,9 +109,8 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 	}
 
 	joinedErr := netio.BroadcastMessage(maps.Keys(match.Players), broadcast)
-	leaderErr := broadcastLeader(match)
 
-	return errors.Join(joinedErr, leaderErr)
+	return joinedErr
 }
 
 func HandleUpdateReadyState(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.UpdateReadyState) error {
@@ -157,30 +156,23 @@ func HandlePlayerDisconnect(match *gamelogic.GameMatch, conn net.Conn) error {
 	leftErr := netio.BroadcastMessage(maps.Keys(match.Players), left)
 
 	var leaderErr error
-	if leaderChanged {
-		leaderErr = broadcastLeader(match)
+	if leaderChanged && match.LeaderID != 0 {
+
+		envelope := &protocol.Envelope{
+			Payload: &protocol.Envelope_PlayerEvent{
+				PlayerEvent: &protocol.PlayerEvent{
+					Id: match.LeaderID,
+					EventType: &protocol.PlayerEvent_SetLeader{
+						SetLeader: &protocol.PlayerSetLeader{},
+					},
+				},
+			},
+		}
+
+		netio.BroadcastMessage(maps.Keys(match.Players), envelope)
 	}
 
 	return errors.Join(leftErr, leaderErr)
-}
-
-func broadcastLeader(match *gamelogic.GameMatch) error {
-	if match.LeaderID == 0 {
-		return nil
-	}
-
-	envelope := &protocol.Envelope{
-		Payload: &protocol.Envelope_PlayerEvent{
-			PlayerEvent: &protocol.PlayerEvent{
-				Id: match.LeaderID,
-				EventType: &protocol.PlayerEvent_SetLeader{
-					SetLeader: &protocol.PlayerSetLeader{},
-				},
-			},
-		},
-	}
-
-	return netio.BroadcastMessage(maps.Keys(match.Players), envelope)
 }
 
 func HandleGameStartRequest(
@@ -201,7 +193,14 @@ func HandleGameStartRequest(
 
 	match.Phase = gamelogic.PhasePreparing
 
-	spawns := make([]*protocol.PlayerSpawnInfo, len(match.Players))
+	spawns := make([]*protocol.PlayerSpawnInfo, 0, len(match.Players))
+	for _, player := range match.Players {
+		spawns = append(spawns, &protocol.PlayerSpawnInfo{
+			PlayerId: player.ID,
+			X:        player.X,
+			Y:        player.Y,
+		})
+	}
 
 	gameStart := &protocol.Envelope{
 		Payload: &protocol.Envelope_GameStart{
@@ -227,21 +226,11 @@ func HandleClientMatchReady(
 	match *gamelogic.GameMatch,
 	conn net.Conn,
 ) error {
-	player, exists := match.Players[conn]
-
-	if !exists || match.Phase != gamelogic.PhasePreparing {
+	player := match.Players[conn]
+	if match.Phase != gamelogic.PhasePreparing {
 		return nil
 	}
-
 	player.MatchReady = true
-	return tryStartMatch(match)
-}
-
-func tryStartMatch(match *gamelogic.GameMatch) error {
-	if match.Phase != gamelogic.PhasePreparing ||
-		len(match.Players) == 0 {
-		return nil
-	}
 
 	for _, player := range match.Players {
 		if !player.MatchReady {

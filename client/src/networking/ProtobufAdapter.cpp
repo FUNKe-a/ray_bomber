@@ -79,6 +79,7 @@ std::optional<GameEvent> ProtobufAdapter::decode(
 
 			setup.id = response.id();
 			setup.color = *color;
+			setup.leader_id = response.leader_id();
 
 			setup.players.reserve(response.players_size());
 			for (const auto& player : response.players()) {

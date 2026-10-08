@@ -15,6 +15,7 @@ struct PlayerInfo {
 
 struct LobbyJoined {
     std::uint32_t id;
+	std::uint32_t leader_id;
     PlayerColor color;
 	std::vector<PlayerInfo> players;
 };

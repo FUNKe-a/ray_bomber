@@ -119,7 +119,7 @@ func (match *GameMatch) IsFull() bool {
 }
 
 func (match *GameMatch) updateLeader() {
-	if match.LeaderID == 0 {
+	if match.LeaderID == 0 && len(match.Players) > 0 {
 		for _, p := range match.Players {
 			match.LeaderID = p.ID
 			return

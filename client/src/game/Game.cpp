@@ -21,6 +21,7 @@ void Game::handleEvent(const GameEvent& event)
 void Game::apply(const LobbyJoined& event)
 {
     localPlayerId = event.id;
+	leaderId = event.leader_id;
     joinedLobby = true;
 
     auto& participant = ensurePlayer(event.id);
