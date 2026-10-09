@@ -11,3 +11,9 @@ enum Color {
   BLUE = 3;
   YELLOW = 4;
 }
+
+message PlayerInfo {
+  uint32 id = 1;
+  player.Color color = 2;
+  string username = 3;
+}

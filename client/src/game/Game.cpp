@@ -21,6 +21,7 @@ void Game::handleEvent(const GameEvent& event)
 void Game::apply(const LobbyJoined& event)
 {
     localPlayerId = event.id;
+	leaderId = event.leader_id;
     joinedLobby = true;
 
     auto& participant = ensurePlayer(event.id);
@@ -29,6 +30,12 @@ void Game::apply(const LobbyJoined& event)
         participant.setName(localName);
 
     participant.setColor(event.color);
+
+	for (const auto& player : event.players) {
+		auto& other = ensurePlayer(player.id);
+		other.setName(player.username);
+		other.setColor(player.color);
+	}
 }
 
 void Game::apply(const PlayerJoined& event)

@@ -1,10 +1,9 @@
 package gamelogic
 
 import (
-	"log/slog"
-	"net"
-
+	"errors"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	"net"
 )
 
 const (
@@ -42,25 +41,32 @@ const (
 
 // 20 values are reserved for tile types
 // 0 means empty tile
-type GameMatch struct {
+type gameInfo struct {
 	Players map[net.Conn]*Player
 	Board   [][]uint8
 	IDCount uint8
 
-	JoinOrder []net.Conn
-	LeaderID  uint32 // Zero means no leader.
-	Phase     MatchPhase
+	LeaderID uint32 // Zero means no leader.
+	Phase    MatchPhase
 }
 
-func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, protocol.Color) {
+var gameInstance *gameInfo
+
+func GetGameInfo() *gameInfo {
+	if gameInstance == nil {
+		gameInstance = setup(15, 13)
+	}
+
+	return gameInstance
+}
+
+func (match *gameInfo) AddPlayer(p_conn net.Conn, username string) (uint32, protocol.Color, error) {
 	if player, exists := match.Players[p_conn]; exists {
-		slog.Debug("Player already added to match.")
-		return player.ID, player.Color
+		return player.ID, player.Color, errors.New("Player has already been added to match.")
 	}
 
 	for _, color := range availableColors {
 		isTaken := false
-
 		for _, player := range match.Players {
 			if player.Color == color {
 				isTaken = true
@@ -68,7 +74,7 @@ func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, pro
 			}
 		}
 
-		if isTaken == false {
+		if !isTaken {
 			var spawnX, spawnY int32
 
 			switch color {
@@ -91,57 +97,47 @@ func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, pro
 				Color:    color,
 			}
 
-			match.JoinOrder = append(match.JoinOrder, p_conn)
+			match.updateLeader()
 
-			if match.LeaderID == 0 {
-				match.LeaderID = playerID
-			}
-
-			return playerID, color
+			return playerID, color, nil
 		}
 	}
 
-	return 0, 0
+	return 0, 0, nil
 }
 
-func (match *GameMatch) RemovePlayer(conn net.Conn) (*Player, bool) {
-	player, exists := match.Players[conn]
-	if !exists {
-		return nil, false
-	}
+func (match *gameInfo) RemovePlayer(conn net.Conn) (*Player, bool) {
+	player := match.Players[conn]
 
 	delete(match.Players, conn)
 
-	for i, candidate := range match.JoinOrder {
-		if candidate == conn {
-			match.JoinOrder = append(
-				match.JoinOrder[:i],
-				match.JoinOrder[i+1:]...,
-			)
-			break
-		}
+	isLeader := player.ID == match.LeaderID
+
+	if isLeader {
+		match.LeaderID = 0
+		match.updateLeader()
 	}
 
-	previousLeader := match.LeaderID
-	match.LeaderID = 0
-
-	if len(match.JoinOrder) > 0 {
-		match.LeaderID = match.Players[match.JoinOrder[0]].ID
-	} else {
-		match.Phase = PhaseLobby
-	}
-
-	return player, previousLeader != match.LeaderID
+	return player, isLeader
 }
 
-func (match *GameMatch) IsFull(p_conn net.Conn) bool {
+func (match *gameInfo) IsFull() bool {
 	if len(match.Players) >= 4 {
 		return true
 	}
 	return false
 }
 
-func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
+func (match *gameInfo) updateLeader() {
+	if match.LeaderID == 0 && len(match.Players) > 0 {
+		for _, p := range match.Players {
+			match.LeaderID = p.ID
+			return
+		}
+	}
+}
+
+func setup(sizeX uint8, sizeY uint8) *gameInfo {
 	// board := make([][]uint8, sizeY)
 	// for i := range board {
 	// 	board[i] = make([]uint8, sizeX)
@@ -168,5 +164,5 @@ func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
 		slice[i] = board[i][:]
 	}
 
-	return GameMatch{Players: make(map[net.Conn]*Player), Board: slice, IDCount: 20}
+	return &gameInfo{Players: make(map[net.Conn]*Player), Board: slice, IDCount: 20}
 }

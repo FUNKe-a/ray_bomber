@@ -7,9 +7,17 @@
 #include <variant>
 #include <vector>
 
+struct PlayerInfo {
+	std::uint32_t id;
+	PlayerColor color;
+	std::string username;
+};
+
 struct LobbyJoined {
     std::uint32_t id;
+	std::uint32_t leader_id;
     PlayerColor color;
+	std::vector<PlayerInfo> players;
 };
 
 struct PlayerJoined {

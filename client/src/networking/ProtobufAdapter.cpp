@@ -70,14 +70,33 @@ std::optional<GameEvent> ProtobufAdapter::decode(
 {
     switch (message.payload_case()) {
         case Envelope::kJoinLobbyResponse: {
+			LobbyJoined setup;
             const auto& response = message.join_lobby_response();
             const auto color = decodeColor(response.color());
 
             if (!color)
                 return std::nullopt;
 
+			setup.id = response.id();
+			setup.color = *color;
+			setup.leader_id = response.leader_id();
+
+			setup.players.reserve(response.players_size());
+			for (const auto& player : response.players()) {
+            	const auto pcolor = decodeColor(player.color());
+
+            	if (!pcolor)
+                	return std::nullopt;
+
+				setup.players.push_back(PlayerInfo{
+					player.id(),
+					*pcolor,
+					player.username(),
+				});
+			}
+
             return GameEvent{
-                LobbyJoined{response.id(), *color}
+				setup
             };
         }
 

@@ -2,19 +2,18 @@ package handlers
 
 import (
 	"errors"
-	"maps"
-	"net"
-
 	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
+	"maps"
+	"net"
 )
 
-type HandlerFunc func(match *gamelogic.GameMatch, conn net.Conn, payload any) error
+var gameInfo = gamelogic.GetGameInfo()
 
-func HandleMoveRequest(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.MoveRequest) error {
-	player, exists := match.Players[conn]
-	if !exists || match.Phase != gamelogic.PhasePlaying {
+func HandleMoveRequest(conn net.Conn, msg *protocol.MoveRequest) error {
+	player, exists := gameInfo.Players[conn]
+	if !exists || gameInfo.Phase != gamelogic.PhasePlaying {
 		return nil
 	}
 
@@ -34,8 +33,8 @@ func HandleMoveRequest(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.
 		return nil
 	}
 
-	if new_x >= 0 && new_x < int32(len(match.Board[0])) && new_y >= 0 && new_y < int32(len(match.Board)) {
-		if match.Board[new_y][new_x] == gamelogic.EmptyTile {
+	if new_x >= 0 && new_x < int32(len(gameInfo.Board[0])) && new_y >= 0 && new_y < int32(len(gameInfo.Board)) {
+		if gameInfo.Board[new_y][new_x] == gamelogic.EmptyTile {
 			player.X = new_x
 			player.Y = new_y
 
@@ -49,7 +48,7 @@ func HandleMoveRequest(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.
 				},
 			}
 
-			if err := netio.BroadcastMessage(maps.Keys(match.Players), msg); err != nil {
+			if err := netio.BroadcastMessage(maps.Keys(gameInfo.Players), msg); err != nil {
 				return err
 			}
 		}
@@ -58,31 +57,35 @@ func HandleMoveRequest(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.
 	return nil
 }
 
-func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.JoinLobbyRequest) error {
-	if match.Phase != gamelogic.PhaseLobby {
+func HandleJoinLobbyRequest(conn net.Conn, msg *protocol.JoinLobbyRequest) error {
+	if gameInfo.Phase != gamelogic.PhaseLobby || gameInfo.IsFull() {
 		return conn.Close()
 	}
 
-	if _, exists := match.Players[conn]; exists {
-		// Ignore duplicate join requests from an admitted connection.
-		return nil
+	id, color, err := gameInfo.AddPlayer(conn, msg.Username)
+	if err != nil {
+		return err
 	}
 
-	if match.IsFull(conn) {
-		return conn.Close()
-	}
-
-	id, color := match.AddPlayer(conn, msg.Username)
-
-	if id == 0 {
-		return conn.Close()
+	players := make([]*protocol.PlayerInfo, 0, len(gameInfo.Players)-1)
+	for _, p := range gameInfo.Players {
+		if p.ID != id {
+			info := &protocol.PlayerInfo{
+				Id:       p.ID,
+				Username: p.Username,
+				Color:    p.Color,
+			}
+			players = append(players, info)
+		}
 	}
 
 	response := &protocol.Envelope{
 		Payload: &protocol.Envelope_JoinLobbyResponse{
 			JoinLobbyResponse: &protocol.JoinLobbyResponse{
-				Id:    id,
-				Color: color,
+				Id:       id,
+				LeaderId: gameInfo.LeaderID,
+				Color:    color,
+				Players:  players,
 			},
 		},
 	}
@@ -91,71 +94,28 @@ func HandleJoinLobbyRequest(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 		return err
 	}
 
-	for existingConn, existingPlayer := range match.Players {
-		if existingConn == conn {
-			continue
-		}
-
-		existingPlayerEvent := &protocol.Envelope{
-			Payload: &protocol.Envelope_PlayerEvent{
-				PlayerEvent: &protocol.PlayerEvent{
-					Id: existingPlayer.ID,
-					EventType: &protocol.PlayerEvent_Joined{
-						Joined: &protocol.PlayerJoined{
-							Username: existingPlayer.Username,
-							Color:    existingPlayer.Color,
-						},
-					},
-				},
-			},
-		}
-
-		if err := netio.SendMessage(conn, existingPlayerEvent); err != nil {
-			return err
-		}
-
-		if existingPlayer.IsReady {
-			existingReadyEvent := &protocol.Envelope{
-				Payload: &protocol.Envelope_PlayerEvent{
-					PlayerEvent: &protocol.PlayerEvent{
-						Id: existingPlayer.ID,
-						EventType: &protocol.PlayerEvent_Ready{
-							Ready: &protocol.PlayerReady{
-								IsReady: true,
-							},
-						},
-					},
-				},
-			}
-
-			if err := netio.SendMessage(conn, existingReadyEvent); err != nil {
-				return err
-			}
-		}
-	}
-
 	broadcast := &protocol.Envelope{
 		Payload: &protocol.Envelope_PlayerEvent{
 			PlayerEvent: &protocol.PlayerEvent{
 				Id: id,
 				EventType: &protocol.PlayerEvent_Joined{
 					Joined: &protocol.PlayerJoined{
-						Username: match.Players[conn].Username,
+						Username: gameInfo.Players[conn].Username,
 						Color:    color,
 					},
 				},
 			},
 		},
 	}
-	joinedErr := netio.BroadcastMessage(maps.Keys(match.Players), broadcast)
-	leaderErr := broadcastLeader(match)
 
-	return errors.Join(joinedErr, leaderErr)
+	joinedErr := netio.BroadcastMessage(maps.Keys(gameInfo.Players), broadcast)
+
+	return joinedErr
 }
 
-func HandleUpdateReadyState(match *gamelogic.GameMatch, conn net.Conn, msg *protocol.UpdateReadyState) error {
-	player, exists := match.Players[conn]
-	if !exists || match.Phase != gamelogic.PhaseLobby {
+func HandleUpdateReadyState(conn net.Conn, msg *protocol.UpdateReadyState) error {
+	player := gameInfo.Players[conn]
+	if gameInfo.Phase != gamelogic.PhaseLobby {
 		return nil
 	}
 
@@ -174,14 +134,11 @@ func HandleUpdateReadyState(match *gamelogic.GameMatch, conn net.Conn, msg *prot
 		},
 	}
 
-	return netio.BroadcastMessage(maps.Keys(match.Players), broadcast)
+	return netio.BroadcastMessage(maps.Keys(gameInfo.Players), broadcast)
 }
 
-func HandlePlayerDisconnect(match *gamelogic.GameMatch, conn net.Conn) error {
-	player, leaderChanged := match.RemovePlayer(conn)
-	if player == nil {
-		return nil
-	}
+func HandlePlayerDisconnect(conn net.Conn) error {
+	player, leaderChanged := gameInfo.RemovePlayer(conn)
 
 	left := &protocol.Envelope{
 		Payload: &protocol.Envelope_PlayerEvent{
@@ -196,67 +153,51 @@ func HandlePlayerDisconnect(match *gamelogic.GameMatch, conn net.Conn) error {
 		},
 	}
 
-	leftErr := netio.BroadcastMessage(maps.Keys(match.Players), left)
+	leftErr := netio.BroadcastMessage(maps.Keys(gameInfo.Players), left)
 
 	var leaderErr error
-	if leaderChanged {
-		leaderErr = broadcastLeader(match)
-	}
+	if leaderChanged && gameInfo.LeaderID != 0 {
 
-	// A departing client must not block the remaining ready clients.
-	startErr := tryStartMatch(match)
-
-	return errors.Join(leftErr, leaderErr, startErr)
-}
-
-func broadcastLeader(match *gamelogic.GameMatch) error {
-	if match.LeaderID == 0 {
-		return nil
-	}
-
-	envelope := &protocol.Envelope{
-		Payload: &protocol.Envelope_PlayerEvent{
-			PlayerEvent: &protocol.PlayerEvent{
-				Id: match.LeaderID,
-				EventType: &protocol.PlayerEvent_SetLeader{
-					SetLeader: &protocol.PlayerSetLeader{},
+		envelope := &protocol.Envelope{
+			Payload: &protocol.Envelope_PlayerEvent{
+				PlayerEvent: &protocol.PlayerEvent{
+					Id: gameInfo.LeaderID,
+					EventType: &protocol.PlayerEvent_SetLeader{
+						SetLeader: &protocol.PlayerSetLeader{},
+					},
 				},
 			},
-		},
+		}
+
+		netio.BroadcastMessage(maps.Keys(gameInfo.Players), envelope)
 	}
 
-	return netio.BroadcastMessage(maps.Keys(match.Players), envelope)
+	return errors.Join(leftErr, leaderErr)
 }
 
 func HandleGameStartRequest(
-	match *gamelogic.GameMatch,
 	conn net.Conn,
-	_ *protocol.GameStartRequest,
 ) error {
-	player, exists := match.Players[conn]
+	player := gameInfo.Players[conn]
 
-	if !exists || match.Phase != gamelogic.PhaseLobby || player.ID != match.LeaderID {
+	if gameInfo.Phase != gamelogic.PhaseLobby || player.ID != gameInfo.LeaderID {
 		return nil
 	}
 
-	for _, participant := range match.Players {
+	for _, participant := range gameInfo.Players {
 		if !participant.IsReady {
 			return nil
 		}
 	}
 
-	match.Phase = gamelogic.PhasePreparing
+	gameInfo.Phase = gamelogic.PhasePreparing
 
-	spawns := make([]*protocol.PlayerSpawnInfo, 0, len(match.Players))
-
-	for _, playerConn := range match.JoinOrder {
-		participant := match.Players[playerConn]
-		participant.MatchReady = false
-
+	spawns := make([]*protocol.PlayerSpawnInfo, 0, len(gameInfo.Players))
+	for _, player := range gameInfo.Players {
 		spawns = append(spawns, &protocol.PlayerSpawnInfo{
-			PlayerId: participant.ID,
-			X:        participant.X,
-			Y:        participant.Y,
+			PlayerId: player.ID,
+			X:        player.X,
+			Y:        player.Y,
 		})
 	}
 
@@ -274,41 +215,28 @@ func HandleGameStartRequest(
 		},
 	}
 
-	// Preserve this order for every client.
-	startErr := netio.BroadcastMessage(maps.Keys(match.Players), gameStart)
-	setupErr := netio.BroadcastMessage(maps.Keys(match.Players), setup)
+	startErr := netio.BroadcastMessage(maps.Keys(gameInfo.Players), gameStart)
+	setupErr := netio.BroadcastMessage(maps.Keys(gameInfo.Players), setup)
 
 	return errors.Join(startErr, setupErr)
 }
 
 func HandleClientMatchReady(
-	match *gamelogic.GameMatch,
 	conn net.Conn,
-	_ *protocol.ClientMatchReady,
 ) error {
-	player, exists := match.Players[conn]
-
-	if !exists || match.Phase != gamelogic.PhasePreparing {
+	player := gameInfo.Players[conn]
+	if gameInfo.Phase != gamelogic.PhasePreparing {
 		return nil
 	}
-
 	player.MatchReady = true
-	return tryStartMatch(match)
-}
 
-func tryStartMatch(match *gamelogic.GameMatch) error {
-	if match.Phase != gamelogic.PhasePreparing ||
-		len(match.Players) == 0 {
-		return nil
-	}
-
-	for _, player := range match.Players {
+	for _, player := range gameInfo.Players {
 		if !player.MatchReady {
 			return nil
 		}
 	}
 
-	match.Phase = gamelogic.PhasePlaying
+	gameInfo.Phase = gamelogic.PhasePlaying
 
 	envelope := &protocol.Envelope{
 		Payload: &protocol.Envelope_StartMatch{
@@ -316,5 +244,5 @@ func tryStartMatch(match *gamelogic.GameMatch) error {
 		},
 	}
 
-	return netio.BroadcastMessage(maps.Keys(match.Players), envelope)
+	return netio.BroadcastMessage(maps.Keys(gameInfo.Players), envelope)
 }
