@@ -19,10 +19,10 @@ type MsgWrapper struct {
 	Disconnected bool
 }
 
+var gameInfo = gamelogic.GetGameInfo()
+
 func main() {
 	setupLogLevel()
-
-	match := gamelogic.CreateMatch(15, 13)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:6769")
 	if err != nil {
@@ -34,7 +34,7 @@ func main() {
 	slog.Info("TCP socket opened on 127.0.0.1:6769")
 
 	messages := make(chan MsgWrapper)
-	go messageHandler(&match, messages)
+	go messageHandler(messages)
 
 	for {
 		conn, err := ln.Accept()
@@ -66,37 +66,37 @@ func readMessages(conn net.Conn, messages chan<- MsgWrapper) {
 	}
 }
 
-func messageHandler(match *gamelogic.GameMatch, messages <-chan MsgWrapper) {
+func messageHandler(messages <-chan MsgWrapper) {
 	for wrapper := range messages {
 		var err error
 
 		if wrapper.Disconnected {
-			err = handlers.HandlePlayerDisconnect(match, wrapper.Conn)
+			err = handlers.HandlePlayerDisconnect(wrapper.Conn)
 		} else {
 			switch msg := wrapper.Msg.Payload.(type) {
 			case *protocol.Envelope_MoveRequest:
 				err = handlers.HandleMoveRequest(
-					match, wrapper.Conn, msg.MoveRequest,
+					wrapper.Conn, msg.MoveRequest,
 				)
 
 			case *protocol.Envelope_JoinLobbyRequest:
 				err = handlers.HandleJoinLobbyRequest(
-					match, wrapper.Conn, msg.JoinLobbyRequest,
+					wrapper.Conn, msg.JoinLobbyRequest,
 				)
 
 			case *protocol.Envelope_UpdateReadyState:
 				err = handlers.HandleUpdateReadyState(
-					match, wrapper.Conn, msg.UpdateReadyState,
+					wrapper.Conn, msg.UpdateReadyState,
 				)
 
 			case *protocol.Envelope_GameStartRequest:
 				err = handlers.HandleGameStartRequest(
-					match, wrapper.Conn,
+					wrapper.Conn,
 				)
 
 			case *protocol.Envelope_ClientMatchReady:
 				err = handlers.HandleClientMatchReady(
-					match, wrapper.Conn,
+					wrapper.Conn,
 				)
 			}
 		}

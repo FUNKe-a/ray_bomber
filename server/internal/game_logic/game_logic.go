@@ -41,7 +41,7 @@ const (
 
 // 20 values are reserved for tile types
 // 0 means empty tile
-type GameMatch struct {
+type gameInfo struct {
 	Players map[net.Conn]*Player
 	Board   [][]uint8
 	IDCount uint8
@@ -50,7 +50,17 @@ type GameMatch struct {
 	Phase    MatchPhase
 }
 
-func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, protocol.Color, error) {
+var gameInstance *gameInfo
+
+func GetGameInfo() *gameInfo {
+	if gameInstance == nil {
+		gameInstance = setup(15, 13)
+	}
+
+	return gameInstance
+}
+
+func (match *gameInfo) AddPlayer(p_conn net.Conn, username string) (uint32, protocol.Color, error) {
 	if player, exists := match.Players[p_conn]; exists {
 		return player.ID, player.Color, errors.New("Player has already been added to match.")
 	}
@@ -96,7 +106,7 @@ func (match *GameMatch) AddPlayer(p_conn net.Conn, username string) (uint32, pro
 	return 0, 0, nil
 }
 
-func (match *GameMatch) RemovePlayer(conn net.Conn) (*Player, bool) {
+func (match *gameInfo) RemovePlayer(conn net.Conn) (*Player, bool) {
 	player := match.Players[conn]
 
 	delete(match.Players, conn)
@@ -111,14 +121,14 @@ func (match *GameMatch) RemovePlayer(conn net.Conn) (*Player, bool) {
 	return player, isLeader
 }
 
-func (match *GameMatch) IsFull() bool {
+func (match *gameInfo) IsFull() bool {
 	if len(match.Players) >= 4 {
 		return true
 	}
 	return false
 }
 
-func (match *GameMatch) updateLeader() {
+func (match *gameInfo) updateLeader() {
 	if match.LeaderID == 0 && len(match.Players) > 0 {
 		for _, p := range match.Players {
 			match.LeaderID = p.ID
@@ -127,7 +137,7 @@ func (match *GameMatch) updateLeader() {
 	}
 }
 
-func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
+func setup(sizeX uint8, sizeY uint8) *gameInfo {
 	// board := make([][]uint8, sizeY)
 	// for i := range board {
 	// 	board[i] = make([]uint8, sizeX)
@@ -154,5 +164,5 @@ func CreateMatch(sizeX uint8, sizeY uint8) GameMatch {
 		slice[i] = board[i][:]
 	}
 
-	return GameMatch{Players: make(map[net.Conn]*Player), Board: slice, IDCount: 20}
+	return &gameInfo{Players: make(map[net.Conn]*Player), Board: slice, IDCount: 20}
 }
