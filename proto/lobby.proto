@@ -7,7 +7,9 @@ import "player.proto";
 option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
 
 // Server
-message GameStart {}
+message GameStart {
+  uint64 round_id = 1;
+}
 
 message PlayerJoined {
   string username = 2;
