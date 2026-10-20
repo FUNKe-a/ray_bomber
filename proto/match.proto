@@ -5,8 +5,6 @@ package match;
 option go_package =
   "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
 
-// Shared data
-
 message Cell {
   int32 x = 1;
   int32 y = 2;
@@ -23,17 +21,16 @@ message Board {
   uint32 width = 1;
   uint32 height = 2;
 
-  // Row-major: index = y * width + x.
-  // Must contain exactly width * height entries.
   repeated Terrain cells = 3;
 }
 
 message RoundRules {
-  uint32 bomb_capacity = 1;
-  uint32 blast_range = 2;
-  uint32 bomb_fuse_ms = 3;
-  uint32 blast_duration_ms = 4;
-  uint32 movement_interval_ms = 5;
+  uint32 tick_rate_hz = 1;
+  uint32 bomb_capacity = 2;
+  uint32 bomb_fuse_ticks = 3;
+  uint32 blast_duration_ticks = 4;
+  uint32 blast_range = 5;
+  uint32 movement_interval_ticks = 6;
 }
 
 message PlayerSpawnInfo {
@@ -41,8 +38,6 @@ message PlayerSpawnInfo {
   int32 x = 2;
   int32 y = 3;
 }
-
-// Preparation
 
 message MatchSetup {
   repeated PlayerSpawnInfo spawns = 1;
@@ -58,9 +53,8 @@ message ClientMatchReady {
 
 message StartMatch {
   uint64 round_id = 1;
+  uint64 server_tick = 2;
 }
-
-// Movement
 
 message MoveRequest {
   enum Direction {
@@ -73,40 +67,34 @@ message MoveRequest {
 
   Direction direction = 1;
   uint64 round_id = 2;
+  uint64 request_id = 3;
 }
 
 message PlayerMovement {
   uint32 id = 1;
   int32 x = 2;
   int32 y = 3;
-  uint64 round_id = 4;
-}
 
-// Bomb placement
+  uint64 round_id = 4;
+  uint64 server_tick = 5;
+  uint64 request_id = 6;
+}
 
 message PlaceBombRequest {
   uint64 round_id = 1;
+  uint64 request_id = 2;
 }
 
 message BombPlaced {
   uint64 round_id = 1;
-  uint64 bomb_id = 2;
-  uint32 owner_id = 3;
-  Cell position = 4;
-  uint32 blast_range = 5;
+  uint64 server_tick = 2;
+  uint64 request_id = 3;
 
-  // Presentation only; the server controls detonation.
-  uint32 fuse_ms = 6;
-}
-
-// Rejected client actions
-
-enum ActionType {
-  ACTION_UNSPECIFIED = 0;
-  ACTION_MOVE = 1;
-  ACTION_PLACE_BOMB = 2;
-  ACTION_START_GAME = 3;
-  ACTION_RETURN_TO_LOBBY = 4;
+  uint64 bomb_id = 4;
+  uint32 owner_id = 5;
+  Cell position = 6;
+  uint32 blast_range = 7;
+  uint64 explode_at_tick = 8;
 }
 
 enum RejectionReason {
@@ -119,25 +107,23 @@ enum RejectionReason {
   REJECTION_MOVE_COOLDOWN = 6;
   REJECTION_NOT_LEADER = 7;
   REJECTION_INVALID_REQUEST = 8;
-  REJECTION_NOT_ALL_READY = 9;
-  REJECTION_NOT_ENOUGH_PLAYERS = 10;
 }
 
 message ActionRejected {
-  // Zero for lobby actions without a round ID.
   uint64 round_id = 1;
-  ActionType action = 2;
+  uint64 request_id = 2;
   RejectionReason reason = 3;
 }
-
-// Explosion and elimination updates
 
 message Explosion {
   uint64 bomb_id = 1;
   repeated Cell cells = 2;
+  uint64 expires_at_tick = 3;
+}
 
-  // Presentation only; the server controls blast damage.
-  uint32 duration_ms = 3;
+message TerrainChange {
+  Cell position = 1;
+  Terrain terrain = 2;
 }
 
 enum EliminationReason {
@@ -153,12 +139,12 @@ message PlayerEliminated {
 
 message WorldDelta {
   uint64 round_id = 1;
-  repeated Explosion explosions = 2;
-  repeated PlayerEliminated eliminations = 3;
-  Board board = 4;
-}
+  uint64 server_tick = 2;
 
-// Round results
+  repeated Explosion explosions = 3;
+  repeated TerrainChange terrain_changes = 4;
+  repeated PlayerEliminated eliminations = 5;
+}
 
 enum RoundOutcome {
   OUTCOME_UNSPECIFIED = 0;
@@ -168,16 +154,16 @@ enum RoundOutcome {
 
 message MatchEnded {
   uint64 round_id = 1;
-  RoundOutcome outcome = 2;
+  uint64 server_tick = 2;
+  RoundOutcome outcome = 3;
 
-  // Present only for OUTCOME_WINNER.
-  optional uint32 winner_id = 3;
+  // Tik kai OUTCOME_WINNER.
+  optional uint32 winner_id = 4;
 }
-
-// Returning to the lobby
 
 message ReturnToLobbyRequest {
   uint64 round_id = 1;
+  uint64 request_id = 2;
 }
 
 enum LobbyResetReason {
@@ -188,7 +174,6 @@ enum LobbyResetReason {
 }
 
 message LobbyReset {
-  // Identifies the round being discarded.
   uint64 round_id = 1;
   LobbyResetReason reason = 2;
 }
