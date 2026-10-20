@@ -27,5 +27,13 @@ message Envelope {
     match.PlayerMovement player_movement = 9;
     match.StartMatch start_match = 10;
     match.MatchSetup match_setup = 11;
+
+    match.PlaceBombRequest place_bomb_request = 12;
+    match.ActionRejected action_rejected = 13;
+    match.BombPlaced bomb_placed = 14;
+    match.WorldDelta world_delta = 15;
+    match.MatchEnded match_ended = 16;
+    match.ReturnToLobbyRequest return_to_lobby_request = 17;
+    match.LobbyReset lobby_reset = 18;
   }
 }
