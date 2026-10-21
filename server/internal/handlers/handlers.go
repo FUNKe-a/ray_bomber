@@ -94,6 +94,29 @@ func HandleJoinLobbyRequest(conn net.Conn, msg *protocol.JoinLobbyRequest) error
 		return err
 	}
 
+	for _, p := range gameInfo.Players {
+		if p.ID == id || !p.IsReady {
+			continue
+		}
+
+		readyEvent := &protocol.Envelope{
+			Payload: &protocol.Envelope_PlayerEvent{
+				PlayerEvent: &protocol.PlayerEvent{
+					Id: p.ID,
+					EventType: &protocol.PlayerEvent_Ready{
+						Ready: &protocol.PlayerReady{
+							IsReady: true,
+						},
+					},
+				},
+			},
+		}
+
+		if err := netio.SendMessage(conn, readyEvent); err != nil {
+			return err
+		}
+	}
+
 	broadcast := &protocol.Envelope{
 		Payload: &protocol.Envelope_PlayerEvent{
 			PlayerEvent: &protocol.PlayerEvent{
@@ -139,6 +162,9 @@ func HandleUpdateReadyState(conn net.Conn, msg *protocol.UpdateReadyState) error
 
 func HandlePlayerDisconnect(conn net.Conn) error {
 	player, leaderChanged := gameInfo.RemovePlayer(conn)
+	if player == nil {
+		return nil
+	}
 
 	left := &protocol.Envelope{
 		Payload: &protocol.Envelope_PlayerEvent{
@@ -169,7 +195,7 @@ func HandlePlayerDisconnect(conn net.Conn) error {
 			},
 		}
 
-		netio.BroadcastMessage(maps.Keys(gameInfo.Players), envelope)
+		leaderErr = netio.BroadcastMessage(maps.Keys(gameInfo.Players), envelope)
 	}
 
 	return errors.Join(leftErr, leaderErr)

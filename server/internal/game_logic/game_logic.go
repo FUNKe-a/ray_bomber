@@ -107,11 +107,20 @@ func (match *gameInfo) AddPlayer(p_conn net.Conn, username string) (uint32, prot
 }
 
 func (match *gameInfo) RemovePlayer(conn net.Conn) (*Player, bool) {
-	player := match.Players[conn]
+	player, exists := match.Players[conn]
+	if !exists || player == nil {
+		return nil, false
+	}
+
+	isLeader := player.ID == match.LeaderID
 
 	delete(match.Players, conn)
 
-	isLeader := player.ID == match.LeaderID
+	if len(match.Players) == 0 {
+		match.LeaderID = 0
+		match.Phase = PhaseLobby
+		return player, isLeader
+	}
 
 	if isLeader {
 		match.LeaderID = 0
