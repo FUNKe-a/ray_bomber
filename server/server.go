@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 
-	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	"github.com/FUNKe-a/ray_bomber/server/internal/handlers"
 	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
@@ -18,8 +17,6 @@ type MsgWrapper struct {
 	Msg          *protocol.Envelope
 	Disconnected bool
 }
-
-var gameInfo = gamelogic.GetGameInfo()
 
 func main() {
 	setupLogLevel()
@@ -33,7 +30,7 @@ func main() {
 
 	slog.Info("TCP socket opened on 127.0.0.1:6769")
 
-	messages := make(chan MsgWrapper)
+	messages := make(chan MsgWrapper, 30)
 	go messageHandler(messages)
 
 	for {
