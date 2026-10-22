@@ -141,9 +141,10 @@ void Client::setReady(bool ready)
     send(ProtobufAdapter::makeReady(ready));
 }
 
-void Client::move(Direction direction)
+void Client::move(
+    Direction direction, std::uint64_t roundId, std::uint64_t requestId)
 {
-    send(ProtobufAdapter::makeMove(direction));
+    send(ProtobufAdapter::makeMove(direction, roundId, requestId));
 }
 
 void Client::requestGameStart()
@@ -151,9 +152,9 @@ void Client::requestGameStart()
     send(ProtobufAdapter::makeGameStart());
 }
 
-void Client::matchReady()
+void Client::matchReady(std::uint64_t roundId)
 {
-    send(ProtobufAdapter::makeMatchReady());
+    send(ProtobufAdapter::makeMatchReady(roundId));
 }
 
 void Client::send(const Envelope& message)
