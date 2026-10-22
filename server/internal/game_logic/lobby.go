@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	"net"
+	"maps"
 )
 
 type MatchPhase uint8
@@ -24,18 +25,12 @@ var availableColors = []protocol.Color{
 	protocol.Color_YELLOW,
 }
 
-type LobbyMember struct {
-	Information *protocol.PlayerInfo
-
-	MatchReady bool
-}
-
 type lobby struct {
-	LobbyMembers map[net.Conn]*LobbyMember
-	IDCount      uint8
+	Members map[net.Conn]*protocol.PlayerInfo
 
-	LeaderID uint32 // Zero means no leader.
+	leaderId uint32 // Zero means no leader.
 	Phase    MatchPhase
+	matchCounter uint32
 }
 
 var lobbyInstance *lobby
@@ -48,15 +43,19 @@ func GetLobby() *lobby {
 	return lobbyInstance
 }
 
-func (match *lobby) AddLobbyMember(p_conn net.Conn, username string) (uint32, protocol.Color, error) {
-	if player, exists := match.LobbyMembers[p_conn]; exists {
-		return player.Information.GetId(), player.Information.GetColor(), errors.New("LobbyMember has already been added to match.")
+func (lob *lobby) LeaderId() uint32 {
+	return lob.leaderId
+}
+
+func (lob *lobby) AddMember(p_conn net.Conn, username string) (uint32, protocol.Color, error) {
+	if player, exists := lob.Members[p_conn]; exists {
+		return player.GetId(), player.GetColor(), errors.New("LobbyMember has already been added to lob.")
 	}
 
 	for _, color := range availableColors {
 		isTaken := false
-		for _, player := range match.LobbyMembers {
-			if player.Information.GetColor() == color {
+		for _, player := range lob.Members {
+			if player.GetColor() == color {
 				isTaken = true
 				break
 			}
@@ -64,16 +63,14 @@ func (match *lobby) AddLobbyMember(p_conn net.Conn, username string) (uint32, pr
 
 		if !isTaken {
 			playerID := tilePrefix + uint32(color)
-			match.LobbyMembers[p_conn] = &LobbyMember{
-				Information: &protocol.PlayerInfo{
-					Id:       playerID,
-					Username: username,
-					Color:    color,
-					IsReady:  false,
-				},
+			lob.Members[p_conn] = &protocol.PlayerInfo{
+				Id:       playerID,
+				Username: username,
+				Color:    color,
+				IsReady:  false,
 			}
 
-			match.updateLeader()
+			lob.updateLeader()
 
 			return playerID, color, nil
 		}
@@ -82,42 +79,50 @@ func (match *lobby) AddLobbyMember(p_conn net.Conn, username string) (uint32, pr
 	return 0, 0, nil
 }
 
-func (match *lobby) RemoveLobbyMember(conn net.Conn) (*LobbyMember, bool) {
-	player, exists := match.LobbyMembers[conn]
+func (lob *lobby) RemoveMember(conn net.Conn) (*protocol.PlayerInfo, bool) {
+	player, exists := lob.Members[conn]
 	if !exists || player == nil {
 		return nil, false
 	}
 
-	isLeader := player.Information.GetId() == match.LeaderID
+	isLeader := player.GetId() == lob.leaderId
 
-	delete(match.LobbyMembers, conn)
+	delete(lob.Members, conn)
 
-	if len(match.LobbyMembers) == 0 {
-		match.LeaderID = 0
-		match.Phase = PhaseLobby
+	if len(lob.Members) == 0 {
+		lob.leaderId = 0
+		lob.Phase = PhaseLobby
 		return player, isLeader
 	}
 
 	if isLeader {
-		match.LeaderID = 0
-		match.updateLeader()
+		lob.leaderId = 0
+		lob.updateLeader()
 	}
 
 	return player, isLeader
 }
 
-func (match *lobby) IsFull() bool {
-	if len(match.LobbyMembers) >= 4 {
+func (lob *lobby) IsFull() bool {
+	if len(lob.Members) >= 4 {
 		return true
 	}
 	return false
 }
 
-func (match *lobby) updateLeader() {
-	if match.LeaderID == 0 && len(match.LobbyMembers) > 0 {
-		for _, p := range match.LobbyMembers {
-			match.LeaderID = p.Information.GetId()
+func (lob *lobby) updateLeader() {
+	if lob.leaderId == 0 && len(lob.Members) > 0 {
+		for _, p := range lob.Members {
+			lob.leaderId = p.GetId()
 			return
 		}
 	}
+}
+
+func (lob *lobby) StartMatch() *Match {
+	match := NewMatch(maps.Keys(lob.Members))
+	match.id = lob.matchCounter
+	lob.matchCounter += 1
+
+	return match
 }
