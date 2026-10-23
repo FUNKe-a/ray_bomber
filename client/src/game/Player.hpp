@@ -12,6 +12,8 @@ public:
     int getX() const;
     int getY() const;
     bool hasPosition() const;
+    bool isEliminated() const;
+    void resetRoundState();
     void setPosition(int x, int y);
     const std::string& getName() const;
     void setName(std::string name);
@@ -25,6 +27,7 @@ private:
     int x = 0;
     int y = 0;
     bool positioned = false;
+    bool eliminated = false;
     std::string name;
     PlayerColor color = PlayerColor::Unknown;
     bool ready = false;
