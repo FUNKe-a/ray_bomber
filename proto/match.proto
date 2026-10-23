@@ -35,8 +35,7 @@ message RoundRules {
 
 message PlayerSpawnInfo {
   uint32 player_id = 1;
-  int32 x = 2;
-  int32 y = 3;
+  Cell pos = 2;
 }
 
 message MatchSetup {
@@ -72,8 +71,7 @@ message MoveRequest {
 
 message PlayerMovement {
   uint32 id = 1;
-  int32 x = 2;
-  int32 y = 3;
+  Cell pos = 2;
 
   uint64 round_id = 4;
   uint64 server_tick = 5;

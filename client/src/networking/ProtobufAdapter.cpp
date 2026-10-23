@@ -94,6 +94,7 @@ std::optional<GameEvent> ProtobufAdapter::decode(
 					player.id(),
 					*pcolor,
 					player.username(),
+                    player.is_ready()
 				});
 			}
 
@@ -108,8 +109,8 @@ std::optional<GameEvent> ProtobufAdapter::decode(
             return GameEvent{
                 PlayerMoved{
                     movement.id(),
-                    movement.x(),
-                    movement.y(),
+                    movement.pos().x(),
+                    movement.pos().y(),
                     movement.round_id(),
                     movement.server_tick(),
                     movement.request_id()
@@ -205,8 +206,8 @@ std::optional<GameEvent> ProtobufAdapter::decode(
             {
                 setup.spawns.push_back(PlayerSpawn{
                     spawn.player_id(),
-                    spawn.x(),
-                    spawn.y()
+                    spawn.pos().x(),
+                    spawn.pos().y()
                 });
             }
 
