@@ -1,48 +1,9 @@
 #include "GameSession.hpp"
-#include "Map.hpp"
 #include "GameEvent.hpp"
 
 #include <utility>
-#include <unordered_set>
-#include <iostream>
-
-namespace
-{
-    bool isValidMatchSetup(
-        const MatchSetupReceived& setup,
-        const Game& game
-    )
-    {
-        if (!game.hasJoinedLobby())
-        {
-            return false;
-        }
-
-        std::unordered_set<std::uint32_t> playerIds;
-        bool includesLocalPlayer = false;
-
-        for (const auto& spawn : setup.spawns)
-        {
-            if (spawn.x < 0 || spawn.x >= Map::Width ||
-                spawn.y < 0 || spawn.y >= Map::Height)
-            {
-                return false;
-            }
-
-            if (!playerIds.insert(spawn.id).second)
-            {
-                return false;
-            }
-
-            if (spawn.id == game.getLocalPlayerId())
-            {
-                includesLocalPlayer = true;
-            }
-        }
-
-        return includesLocalPlayer;
-    }
-}
+#include <exception>
+#include <limits>
 
 void GameSession::connect(
     const std::string& address,
@@ -69,6 +30,7 @@ void GameSession::disconnect()
     localName.clear();
     errorMessage.clear();
     state = State::Disconnected;
+    nextRequestId = 1;
 }
 
 void GameSession::update()
@@ -146,16 +108,22 @@ void GameSession::update()
                 return;
             }
 
-            if (!isValidMatchSetup(*setup, game))
+            try
             {
-                fail("Server sent an invalid match setup.");
+                if (!game.prepareRound(*setup))
+                {
+                    fail("Server sent an invalid match setup.");
+                    return;
+                }
+            }
+            catch (const std::exception&)
+            {
+                fail("Could not prepare the round.");
                 return;
             }
 
-            game.handleEvent(event);
-
-            // Current preparation consists of applying spawn positions.
-            client.matchReady();
+            nextRequestId = 1;
+            client.matchReady(game.getRoundId());
 
             if (client.getConnectionState() == Client::ConnectionState::Failed)
             {
@@ -167,7 +135,7 @@ void GameSession::update()
             continue;
         }
 
-        if (std::holds_alternative<MatchStarted>(event))
+        if (const auto* started = std::get_if<MatchStarted>(&event))
         {
             if (state != State::WaitingForMatchStart)
             {
@@ -175,9 +143,20 @@ void GameSession::update()
                 return;
             }
 
+            if (started->roundId != game.getRoundId())
+            {
+                fail("Received match start for a different round.");
+                return;
+            }
+
+            game.handleEvent(event);
             state = State::Playing;
             continue;
         }
+
+        // Gameplay updates must not alter a round before StartMatch.
+        if (std::holds_alternative<PlayerMoved>(event) && state != State::Playing)
+            continue;
 
         game.handleEvent(event);
 
@@ -211,7 +190,12 @@ void GameSession::move(Direction direction)
 {
     if (state == State::Playing)
     {
-        client.move(direction);
+        if (nextRequestId == std::numeric_limits<std::uint64_t>::max())
+        {
+            fail("Gameplay request IDs exhausted.");
+            return;
+        }
+        client.move(direction, game.getRoundId(), nextRequestId++);
     }
 }
 

@@ -1,6 +1,7 @@
 #include "ProtobufAdapter.hpp"
 
 #include <stdexcept>
+#include <utility>
 
 namespace {
     std::optional<PlayerColor> decodeColor(player::Color color)
@@ -42,12 +43,13 @@ Envelope ProtobufAdapter::makeReady(bool ready)
     return message;
 }
 
-Envelope ProtobufAdapter::makeMove(Direction direction)
+Envelope ProtobufAdapter::makeMove(
+    Direction direction, std::uint64_t roundId, std::uint64_t requestId)
 {
     Envelope message;
-    message.mutable_move_request()->set_direction(
-        encodeDirection(direction)
-    );
+    message.mutable_move_request()->set_round_id(roundId);
+    message.mutable_move_request()->set_request_id(requestId);
+    message.mutable_move_request()->set_direction(encodeDirection(direction));
     return message;
 }
 
@@ -58,10 +60,10 @@ Envelope ProtobufAdapter::makeGameStart()
     return message;
 }
 
-Envelope ProtobufAdapter::makeMatchReady()
+Envelope ProtobufAdapter::makeMatchReady(std::uint64_t roundId)
 {
     Envelope message;
-    message.mutable_client_match_ready();
+    message.mutable_client_match_ready()->set_round_id(roundId);
     return message;
 }
 
@@ -107,7 +109,10 @@ std::optional<GameEvent> ProtobufAdapter::decode(
                 PlayerMoved{
                     movement.id(),
                     movement.x(),
-                    movement.y()
+                    movement.y(),
+                    movement.round_id(),
+                    movement.server_tick(),
+                    movement.request_id()
                 }
             };
         }
@@ -163,8 +168,38 @@ std::optional<GameEvent> ProtobufAdapter::decode(
 
         case Envelope::kMatchSetup:
         {
+            const auto& source = message.match_setup();
+            if (!source.has_board() || !source.has_rules())
+                return std::nullopt;
+
+            const auto& board = source.board();
+            if (!Map::validDimensions(board.width(), board.height()) ||
+                static_cast<std::uint64_t>(board.cells_size()) !=
+                    static_cast<std::uint64_t>(board.width()) * board.height())
+                return std::nullopt;
+
             MatchSetupReceived setup;
-            setup.spawns.reserve(message.match_setup().spawns_size());
+            setup.roundId = source.round_id();
+            setup.width = board.width();
+            setup.height = board.height();
+            setup.terrain.reserve(board.cells_size());
+            for (const auto terrain : board.cells())
+            {
+                switch (terrain)
+                {
+                    case match::TERRAIN_FLOOR: setup.terrain.push_back(Map::Tile::Empty); break;
+                    case match::TERRAIN_WALL: setup.terrain.push_back(Map::Tile::Wall); break;
+                    case match::TERRAIN_CRATE: setup.terrain.push_back(Map::Tile::Crate); break;
+                    default: return std::nullopt;
+                }
+            }
+
+            const auto& rules = source.rules();
+            setup.rules = RoundRules{
+                rules.tick_rate_hz(), rules.bomb_capacity(), rules.bomb_fuse_ticks(),
+                rules.blast_duration_ticks(), rules.blast_range(), rules.movement_interval_ticks()
+            };
+            setup.spawns.reserve(source.spawns_size());
 
             for (const auto& spawn : message.match_setup().spawns())
             {
@@ -179,7 +214,10 @@ std::optional<GameEvent> ProtobufAdapter::decode(
         }
 
         case Envelope::kStartMatch:
-            return GameEvent{MatchStarted{}};
+            return GameEvent{MatchStarted{
+                message.start_match().round_id(),
+                message.start_match().server_tick()
+            }};
 
         default:
             return std::nullopt;

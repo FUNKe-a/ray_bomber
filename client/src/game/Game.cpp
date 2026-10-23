@@ -1,6 +1,6 @@
 #include "Game.hpp"
-#include <iostream>
 #include <utility>
+#include <unordered_set>
 
 Game::Game(std::string localName) : localName(std::move(localName)) {}
 
@@ -65,8 +65,7 @@ void Game::apply(const PlayerReadyChanged& event)
 
 void Game::apply(const PlayerSpawn& event)
 {
-    if (event.x < 0 || event.x >= Map::Width ||
-        event.y < 0 || event.y >= Map::Height)
+    if (!map.contains(event.x, event.y))
     {
         return;
     }
@@ -76,13 +75,17 @@ void Game::apply(const PlayerSpawn& event)
 
 void Game::apply(const PlayerMoved& event)
 {
-    if (event.x < 0 || event.x >= Map::Width ||
-        event.y < 0 || event.y >= Map::Height)
-    {
+    if (roundId == 0 || event.roundId != roundId ||
+        event.serverTick < serverTick || !map.contains(event.x, event.y))
         return;
-    }
 
-    ensurePlayer(event.id).setPosition(event.x, event.y);
+    const auto it = players.find(event.id);
+    if (it == players.end() || !it->second.hasPosition() ||
+        it->second.isEliminated())
+        return;
+
+    it->second.setPosition(event.x, event.y);
+    serverTick = event.serverTick;
 }
 
 void Game::apply(const LobbyLeaderChanged& event)
@@ -95,18 +98,79 @@ void Game::apply(const MatchPreparationStarted&)
     // GameSession handles the preparation phase.
 }
 
-void Game::apply(const MatchSetupReceived& event)
+bool Game::prepareRound(const MatchSetupReceived& setup)
 {
-    for (const auto& spawn : event.spawns)
+    const auto& rules = setup.rules;
+    if (!joinedLobby || setup.roundId == 0 || setup.roundId == roundId ||
+        !Map::validDimensions(setup.width, setup.height) ||
+        setup.terrain.size() != static_cast<std::uint64_t>(setup.width) * setup.height ||
+        rules.tickRateHz == 0 || rules.bombCapacity == 0 ||
+        rules.bombFuseTicks == 0 || rules.blastDurationTicks == 0 ||
+        rules.blastRange == 0 || rules.movementIntervalTicks == 0 ||
+        setup.spawns.size() != players.size())
+        return false;
+
+    for (const auto tile : setup.terrain)
     {
-        apply(spawn);
+        if (tile != Map::Tile::Empty && tile != Map::Tile::Wall &&
+            tile != Map::Tile::Crate)
+            return false;
     }
+
+    std::unordered_set<std::uint32_t> ids;
+    std::unordered_set<std::uint64_t> occupiedCells;
+    for (const auto& spawn : setup.spawns)
+    {
+        if (spawn.x < 0 || spawn.y < 0 ||
+            static_cast<std::uint32_t>(spawn.x) >= setup.width ||
+            static_cast<std::uint32_t>(spawn.y) >= setup.height ||
+            players.find(spawn.id) == players.end() ||
+            !ids.insert(spawn.id).second)
+            return false;
+
+        const auto index = static_cast<std::uint64_t>(spawn.y) * setup.width + spawn.x;
+        if (setup.terrain[index] != Map::Tile::Empty ||
+            !occupiedCells.insert(index).second)
+            return false;
+    }
+    if (ids.find(localPlayerId) == ids.end())
+        return false;
+
+    // All allocations and preparation happen before committing any changes.
+    Map nextMap{setup.width, setup.height, setup.terrain};
+    auto nextPlayers = players;
+    for (auto& [id, player] : nextPlayers)
+        player.resetRoundState();
+    for (const auto& spawn : setup.spawns)
+        nextPlayers.at(spawn.id).setPosition(spawn.x, spawn.y);
+
+    using std::swap;
+    swap(map, nextMap);
+    players.swap(nextPlayers);
+    roundId = setup.roundId;
+    serverTick = 0;
+    roundRules = setup.rules;
+    bombs.clear();
+    blasts.clear();
+    return true;
 }
 
-void Game::apply(const MatchStarted&)
+void Game::apply(const MatchSetupReceived& event)
 {
-    // GameSession handles the transition to Playing.
+    prepareRound(event);
 }
+
+void Game::apply(const MatchStarted& event)
+{
+    if (roundId != 0 && event.roundId == roundId)
+        serverTick = event.serverTick;
+}
+
+std::uint64_t Game::getRoundId() const { return roundId; }
+std::uint64_t Game::getServerTick() const { return serverTick; }
+const RoundRules& Game::getRoundRules() const { return roundRules; }
+const std::unordered_map<std::uint64_t, Bomb>& Game::getBombs() const { return bombs; }
+const std::vector<Blast>& Game::getBlasts() const { return blasts; }
 
 const Map& Game::getMap() const 
 { 

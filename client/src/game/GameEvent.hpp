@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameTypes.hpp"
+#include "Map.hpp"
 
 #include <cstdint>
 #include <string>
@@ -40,6 +41,9 @@ struct PlayerMoved {
     std::uint32_t id;
     int x;
     int y;
+    std::uint64_t roundId = 0;
+    std::uint64_t serverTick = 0;
+    std::uint64_t requestId = 0;
 };
 
 struct LobbyLeaderChanged
@@ -59,9 +63,18 @@ struct PlayerSpawn
 struct MatchSetupReceived
 {
     std::vector<PlayerSpawn> spawns;
+    std::uint64_t roundId = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<Map::Tile> terrain;
+    RoundRules rules;
 };
 
-struct MatchStarted {};
+struct MatchStarted
+{
+    std::uint64_t roundId = 0;
+    std::uint64_t serverTick = 0;
+};
 
 using GameEvent = std::variant<
     LobbyJoined,

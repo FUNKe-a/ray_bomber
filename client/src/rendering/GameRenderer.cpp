@@ -34,9 +34,9 @@ void GameRenderer::render(const Game& game) const
 
 void GameRenderer::drawMap(const Map& map) const
 {
-    for (int y = 0; y < Map::Height; ++y)
+    for (int y = 0; y < static_cast<int>(map.getHeight()); ++y)
     {
-        for (int x = 0; x < Map::Width; ++x)
+        for (int x = 0; x < static_cast<int>(map.getWidth()); ++x)
         {
             const int screenX = x * TileSize;
             const int screenY = y * TileSize;

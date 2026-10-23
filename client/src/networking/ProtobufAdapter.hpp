@@ -10,9 +10,9 @@
 namespace ProtobufAdapter {
     Envelope makeJoin(const std::string& name);
     Envelope makeReady(bool ready);
-    Envelope makeMove(Direction direction);
+    Envelope makeMove(Direction direction, std::uint64_t roundId, std::uint64_t requestId);
     Envelope makeGameStart();
-    Envelope makeMatchReady();
+    Envelope makeMatchReady(std::uint64_t roundId);
 
     std::optional<GameEvent> decode(const Envelope& message);
 }

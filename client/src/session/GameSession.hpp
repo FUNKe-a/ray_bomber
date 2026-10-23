@@ -50,6 +50,7 @@ private:
     State state = State::Disconnected;
     std::string localName;
     std::string errorMessage;
+    std::uint64_t nextRequestId = 1;
     
     static constexpr std::chrono::seconds ConnectTimeout{10};
     static constexpr std::chrono::seconds JoinTimeout{10};
