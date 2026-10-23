@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
-	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 	"log/slog"
+
+	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 )
 
 var lobby = gamelogic.GetLobby()
@@ -35,11 +36,20 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 				)
 
 			case *protocol.Envelope_GameStartRequest:
-				if match, err := handleGameStartRequest(
-					wrapper.Conn,
-				); err == nil {
-					match_h.Match = match
-					match_h.sendMatchSetup()
+				match, err := handleGameStartRequest(wrapper.Conn)
+				if err != nil {
+					slog.Warn("Failed to start match", "err", err)
+					break
+				}
+
+				if match == nil {
+					break
+				}
+
+				match_h.Match = match
+
+				if err := match_h.sendMatchSetup(); err != nil {
+					slog.Warn("Failed to send match setup", "err", err)
 				}
 
 			case *protocol.Envelope_ClientMatchReady:

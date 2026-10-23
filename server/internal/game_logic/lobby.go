@@ -2,9 +2,10 @@ package gamelogic
 
 import (
 	"errors"
-	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
-	"net"
 	"maps"
+	"net"
+
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 )
 
 type MatchPhase uint8
@@ -28,9 +29,9 @@ var availableColors = []protocol.Color{
 type lobby struct {
 	Members map[net.Conn]*protocol.PlayerInfo
 
-	leaderId uint32 // Zero means no leader.
-	Phase    MatchPhase
-	matchCounter uint32
+	leaderId     uint32 // Zero means no leader.
+	Phase        MatchPhase
+	matchCounter uint64
 }
 
 var lobbyInstance *lobby
@@ -48,6 +49,10 @@ func (lob *lobby) LeaderId() uint32 {
 }
 
 func (lob *lobby) AddMember(p_conn net.Conn, username string) (uint32, protocol.Color, error) {
+	if lob.Members == nil {
+		lob.Members = make(map[net.Conn]*protocol.PlayerInfo)
+	}
+
 	if player, exists := lob.Members[p_conn]; exists {
 		return player.GetId(), player.GetColor(), errors.New("LobbyMember has already been added to lob.")
 	}
@@ -76,7 +81,7 @@ func (lob *lobby) AddMember(p_conn net.Conn, username string) (uint32, protocol.
 		}
 	}
 
-	return 0, 0, nil
+	return 0, protocol.Color_UNKNOWN, errors.New("lobby is full")
 }
 
 func (lob *lobby) RemoveMember(conn net.Conn) (*protocol.PlayerInfo, bool) {
@@ -120,9 +125,10 @@ func (lob *lobby) updateLeader() {
 }
 
 func (lob *lobby) StartMatch() *Match {
+	lob.matchCounter++
+
 	match := NewMatch(maps.Keys(lob.Members))
 	match.id = lob.matchCounter
-	lob.matchCounter += 1
 
 	return match
 }

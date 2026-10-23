@@ -12,6 +12,7 @@ struct PlayerInfo {
 	std::uint32_t id;
 	PlayerColor color;
 	std::string username;
+    bool is_ready;
 };
 
 struct LobbyJoined {

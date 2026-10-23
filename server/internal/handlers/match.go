@@ -1,11 +1,13 @@
 package handlers
 
 import (
-	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
-	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
+	"log/slog"
 	"maps"
 	"net"
+
+	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 )
 
 type matchHandler struct {
@@ -13,7 +15,15 @@ type matchHandler struct {
 }
 
 func (mh *matchHandler) handleMoveRequest(conn net.Conn, msg *protocol.MoveRequest) error {
-	if ok := mh.Match.PlayerExists(conn); ok {
+	slog.Debug(
+		"MoveRequest received",
+		"direction", msg.GetDirection(),
+		"round_id", msg.GetRoundId(),
+		"request_id", msg.GetRequestId(),
+	)
+
+	if !mh.Match.PlayerExists(conn) {
+		slog.Debug("Movement ignored: player not found")
 		return nil
 	}
 
@@ -35,8 +45,10 @@ func (mh *matchHandler) handleMoveRequest(conn net.Conn, msg *protocol.MoveReque
 		msg := &protocol.Envelope{
 			Payload: &protocol.Envelope_PlayerMovement{
 				PlayerMovement: &protocol.PlayerMovement{
-					Id:  lobby.Members[conn].GetId(),
-					Pos: newPos,
+					Id:        lobby.Members[conn].GetId(),
+					Pos:       newPos,
+					RoundId:   mh.Match.GetId(),
+					RequestId: msg.GetRequestId(),
 				},
 			},
 		}
@@ -44,6 +56,8 @@ func (mh *matchHandler) handleMoveRequest(conn net.Conn, msg *protocol.MoveReque
 		if err := netio.BroadcastMessage(maps.Keys(mh.Match.Players), msg); err != nil {
 			return err
 		}
+	} else {
+		slog.Debug("Movement blocked: destination is outside the board or not floor")
 	}
 
 	return nil
@@ -67,7 +81,10 @@ func (mh *matchHandler) handleClientMatchReady(conn net.Conn) error {
 
 	envelope := &protocol.Envelope{
 		Payload: &protocol.Envelope_StartMatch{
-			StartMatch: &protocol.StartMatch{},
+			StartMatch: &protocol.StartMatch{
+				RoundId:    mh.Match.GetId(),
+				ServerTick: 0,
+			},
 		},
 	}
 
@@ -75,21 +92,28 @@ func (mh *matchHandler) handleClientMatchReady(conn net.Conn) error {
 }
 
 func (mh *matchHandler) sendMatchSetup() error {
-	spawnInfo := make([]*protocol.PlayerSpawnInfo, 0, len(lobby.Members)-1)
+	spawnInfo := make([]*protocol.PlayerSpawnInfo, 0, len(lobby.Members))
 	for k, v := range lobby.Members {
 		spawnInfo = append(spawnInfo, &protocol.PlayerSpawnInfo{
 			PlayerId: v.GetId(),
-			Pos: mh.Match.Players[k].GetSpawn(),
+			Pos:      mh.Match.Players[k].GetSpawn(),
 		})
 	}
 
 	envelope := &protocol.Envelope{
 		Payload: &protocol.Envelope_MatchSetup{
 			MatchSetup: &protocol.MatchSetup{
-				Spawns: spawnInfo,
+				Spawns:  spawnInfo,
 				RoundId: mh.Match.GetId(),
-				Board: mh.Match.GetBoard(),
-				Rules: &protocol.RoundRules{},
+				Board:   mh.Match.GetBoard(),
+				Rules: &protocol.RoundRules{
+					TickRateHz:            20,
+					BombCapacity:          1,
+					BombFuseTicks:         60,
+					BlastDurationTicks:    10,
+					BlastRange:            2,
+					MovementIntervalTicks: 3,
+				},
 			},
 		},
 	}

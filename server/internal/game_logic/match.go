@@ -1,15 +1,16 @@
 package gamelogic
 
 import (
-	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
-	"google.golang.org/protobuf/proto"
 	"iter"
 	"math/rand"
 	"net"
+
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
 type MatchPlayer struct {
-	spawn *protocol.Cell
+	spawn      *protocol.Cell
 	MatchReady bool
 }
 
@@ -20,7 +21,7 @@ func (player *MatchPlayer) GetSpawn() *protocol.Cell {
 // 20 values are reserved for tile types
 // 0 means empty tile
 type Match struct {
-	id uint64
+	id      uint64
 	Players map[net.Conn]*MatchPlayer
 
 	board *protocol.Board
@@ -37,16 +38,19 @@ func (m *Match) GetBoard() *protocol.Board {
 
 func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 	spawnPoints := []*protocol.Cell{
-		&protocol.Cell{X: 1, Y: 1},
-		&protocol.Cell{X: 13, Y: 1},
-		&protocol.Cell{X: 1, Y: 11},
-		&protocol.Cell{X: 13, Y: 11},
+		{X: 1, Y: 1},
+		{X: 13, Y: 1},
+		{X: 1, Y: 11},
+		{X: 13, Y: 11},
 	}
 	rand.Shuffle(len(spawnPoints), func(i, j int) {
 		spawnPoints[i], spawnPoints[j] = spawnPoints[j], spawnPoints[i]
 	})
 
-	matchInstance := &Match{}
+	matchInstance := &Match{
+		Players: make(map[net.Conn]*MatchPlayer),
+		board:   &protocol.Board{},
+	}
 
 	i := 0
 	for v := range lobbyMembers {
@@ -58,11 +62,12 @@ func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 
 	matchInstance.board.Height = 13
 	matchInstance.board.Width = 15
-	matchInstance.board.Cells = []protocol.Terrain {
+	matchInstance.board.Cells = []protocol.Terrain{
 		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
 		2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
+		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+		2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
 		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
 		2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2,
 		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
@@ -83,22 +88,40 @@ func (m *Match) PlayerExists(memberConn net.Conn) bool {
 	return false
 }
 
-func (m *Match) MovePlayer(memberConn net.Conn, step *protocol.Cell) (*protocol.Cell, bool) {
-	pos := &protocol.Cell {
-		X: m.Players[memberConn].spawn.GetX() + step.GetX(),
-		Y: m.Players[memberConn].spawn.GetY() + step.GetY(),
+func (m *Match) MovePlayer(
+	memberConn net.Conn,
+	step *protocol.Cell,
+) (*protocol.Cell, bool) {
+	player, exists := m.Players[memberConn]
+	if !exists {
+		return nil, false
 	}
+
+	pos := &protocol.Cell{
+		X: player.spawn.GetX() + step.GetX(),
+		Y: player.spawn.GetY() + step.GetY(),
+	}
+
 	height := int32(m.board.GetHeight())
 	width := int32(m.board.GetWidth())
 
-	if pos.GetX() >= 0 && pos.GetX() < height && pos.GetY() >= 0 && pos.GetY() < width {
-		if m.board.Cells[pos.GetY() * width + pos.GetX()] == protocol.Terrain_TERRAIN_FLOOR {
-			player := m.Players[memberConn]
-			player.spawn = pos
-			return pos, true
-		}
+	if pos.GetX() < 0 || pos.GetX() >= width ||
+		pos.GetY() < 0 || pos.GetY() >= height {
+		return nil, false
 	}
-	return nil, false
+
+	index := int(pos.GetY())*int(width) + int(pos.GetX())
+
+	if index >= len(m.board.Cells) {
+		return nil, false
+	}
+
+	if m.board.Cells[index] != protocol.Terrain_TERRAIN_FLOOR {
+		return nil, false
+	}
+
+	player.spawn = pos
+	return pos, true
 }
 
 // TODO: implement bomb placement

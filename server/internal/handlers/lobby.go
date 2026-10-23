@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"errors"
-	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
-	"github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 	"maps"
 	"net"
+
+	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 )
 
 func handleJoinLobbyRequest(conn net.Conn, msg *protocol.JoinLobbyRequest) error {
@@ -126,9 +127,9 @@ func handlePlayerDisconnect(conn net.Conn) error {
 func handleGameStartRequest(
 	conn net.Conn,
 ) (*gamelogic.Match, error) {
-	player := lobby.Members[conn]
+	player, exists := lobby.Members[conn]
 
-	if lobby.Phase != gamelogic.PhaseLobby || player.GetId() != lobby.LeaderId() {
+	if !exists || lobby.Phase != gamelogic.PhaseLobby || player.GetId() != lobby.LeaderId() {
 		return nil, nil
 	}
 
@@ -143,7 +144,9 @@ func handleGameStartRequest(
 
 	gameStart := &protocol.Envelope{
 		Payload: &protocol.Envelope_GameStart{
-			GameStart: &protocol.GameStart{},
+			GameStart: &protocol.GameStart{
+				RoundId: match.GetId(),
+			},
 		},
 	}
 
