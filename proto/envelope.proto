@@ -30,10 +30,11 @@ message Envelope {
 
     match.PlaceBombRequest place_bomb_request = 12;
     match.ActionRejected action_rejected = 13;
-    match.BombPlaced bomb_placed = 14;
-    match.WorldDelta world_delta = 15;
-    match.MatchEnded match_ended = 16;
-    match.ReturnToLobbyRequest return_to_lobby_request = 17;
-    match.LobbyReset lobby_reset = 18;
+    match.MatchEnded match_ended = 14;
+    match.ReturnToLobbyRequest return_to_lobby_request = 15;
+
+    match.LobbyReset lobby_reset = 16;
+    match.WorldSnapshot world_snapshot = 17;
+    match.PlayerEliminated player_eliminated = 18;
   }
 }
