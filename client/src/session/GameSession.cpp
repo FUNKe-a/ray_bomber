@@ -31,6 +31,7 @@ void GameSession::disconnect()
     errorMessage.clear();
     state = State::Disconnected;
     nextRequestId = 1;
+    preparingRoundId.reset();
 }
 
 void GameSession::update()
@@ -88,23 +89,24 @@ void GameSession::update()
 
     while (client.receive(event))
     {
-        if (std::holds_alternative<MatchPreparationStarted>(event))
+        if (const auto* preparation = std::get_if<MatchPreparationStarted>(&event))
         {
-            if (state != State::Joined)
+            if (state != State::Joined || preparation->roundId == 0)
             {
-                fail("Received game start outside the lobby.");
+                fail("Received invalid match preparation.");
                 return;
             }
 
+            preparingRoundId = preparation->roundId;
             state = State::PreparingMatch;
             continue;
         }
 
         if (const auto* setup = std::get_if<MatchSetupReceived>(&event))
         {
-            if (state != State::PreparingMatch)
+            if (state != State::PreparingMatch || !preparingRoundId || setup->roundId != *preparingRoundId)
             {
-                fail("Received match setup outside match preparation.");
+                fail("Received setup for an unexpected round.");
                 return;
             }
 
@@ -137,19 +139,24 @@ void GameSession::update()
 
         if (const auto* started = std::get_if<MatchStarted>(&event))
         {
-            if (state != State::WaitingForMatchStart)
+            if (state != State::WaitingForMatchStart ||
+                !preparingRoundId ||
+                started->roundId != *preparingRoundId ||
+                started->roundId != game.getRoundId())
             {
-                fail("Received match start before preparation completed.");
+                fail("Received match start for an unprepared round.");
                 return;
             }
 
-            if (started->roundId != game.getRoundId())
+            if (std::holds_alternative<PlayerMoved>(event) &&
+                state != State::Playing)
             {
-                fail("Received match start for a different round.");
-                return;
+                continue;
             }
 
             game.handleEvent(event);
+
+            preparingRoundId.reset();
             state = State::Playing;
             continue;
         }

@@ -3,6 +3,15 @@
 #include <cstdint>
 #include <vector>
 
+enum class Tile
+{
+    Floor,
+    Wall,
+    Crate,
+    Bomb,
+    Explosion
+};
+
 enum class Direction {
     Up,
     Right,
@@ -18,6 +27,15 @@ enum class PlayerColor {
     Yellow
 };
 
+// Data received from the server, before model validation.
+struct BoardData
+{
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::vector<Tile> cells;
+};
+
+
 struct RoundRules
 {
     std::uint32_t tickRateHz = 0;
@@ -26,27 +44,14 @@ struct RoundRules
     std::uint32_t blastDurationTicks = 0;
     std::uint32_t blastRange = 0;
     std::uint32_t movementIntervalTicks = 0;
-};
 
-struct Cell
-{
-    int x = 0;
-    int y = 0;
-};
-
-// Storage for later authoritative bomb/explosion events; no local simulation.
-struct Bomb
-{
-    std::uint64_t id = 0;
-    std::uint32_t ownerId = 0;
-    Cell position;
-    std::uint32_t blastRange = 0;
-    std::uint64_t explodeAtTick = 0;
-};
-
-struct Blast
-{
-    std::uint64_t bombId = 0;
-    std::vector<Cell> cells;
-    std::uint64_t expiresAtTick = 0;
+    bool isValid() const
+    {
+        return tickRateHz > 0 &&
+               bombCapacity > 0 &&
+               bombFuseTicks > 0 &&
+               blastDurationTicks > 0 &&
+               blastRange > 0 &&
+               movementIntervalTicks > 0;
+    }
 };
