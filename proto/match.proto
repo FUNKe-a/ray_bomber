@@ -15,6 +15,8 @@ enum Terrain {
   TERRAIN_FLOOR = 1;
   TERRAIN_WALL = 2;
   TERRAIN_CRATE = 3;
+  TERRAIN_BOMB = 4;
+  TERRAIN_EXPLOSION = 5;
 }
 
 message Board {
@@ -39,11 +41,10 @@ message PlayerSpawnInfo {
 }
 
 message MatchSetup {
-  repeated PlayerSpawnInfo spawns = 1;
-
-  uint64 round_id = 2;
+  uint64 round_id = 1;
+  RoundRules rules = 2;
   Board board = 3;
-  RoundRules rules = 4;
+  repeated PlayerSpawnInfo spawns = 4;
 }
 
 message ClientMatchReady {
@@ -64,18 +65,17 @@ message MoveRequest {
     LEFT = 4;
   }
 
-  Direction direction = 1;
-  uint64 round_id = 2;
-  uint64 request_id = 3;
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+  Direction direction = 3;
 }
 
 message PlayerMovement {
-  uint32 id = 1;
-  Cell pos = 2;
-
-  uint64 round_id = 4;
-  uint64 server_tick = 5;
-  uint64 request_id = 6;
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+  uint64 server_tick = 3;
+  uint32 id = 4;
+  Cell pos = 5;
 }
 
 message PlaceBombRequest {
@@ -83,16 +83,10 @@ message PlaceBombRequest {
   uint64 request_id = 2;
 }
 
-message BombPlaced {
+message WorldSnapshot {
   uint64 round_id = 1;
   uint64 server_tick = 2;
-  uint64 request_id = 3;
-
-  uint64 bomb_id = 4;
-  uint32 owner_id = 5;
-  Cell position = 6;
-  uint32 blast_range = 7;
-  uint64 explode_at_tick = 8;
+  Board board = 3;
 }
 
 enum RejectionReason {
@@ -113,17 +107,6 @@ message ActionRejected {
   RejectionReason reason = 3;
 }
 
-message Explosion {
-  uint64 bomb_id = 1;
-  repeated Cell cells = 2;
-  uint64 expires_at_tick = 3;
-}
-
-message TerrainChange {
-  Cell position = 1;
-  Terrain terrain = 2;
-}
-
 enum EliminationReason {
   ELIMINATION_UNSPECIFIED = 0;
   ELIMINATION_BLAST = 1;
@@ -131,17 +114,10 @@ enum EliminationReason {
 }
 
 message PlayerEliminated {
-  uint32 player_id = 1;
-  EliminationReason reason = 2;
-}
-
-message WorldDelta {
   uint64 round_id = 1;
   uint64 server_tick = 2;
-
-  repeated Explosion explosions = 3;
-  repeated TerrainChange terrain_changes = 4;
-  repeated PlayerEliminated eliminations = 5;
+  uint32 player_id = 3;
+  EliminationReason reason = 4;
 }
 
 enum RoundOutcome {

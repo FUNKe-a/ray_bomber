@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <optional>
 
 class GameSession
 {
@@ -50,6 +51,7 @@ private:
     State state = State::Disconnected;
     std::string localName;
     std::string errorMessage;
+    std::optional<std::uint64_t> preparingRoundId;
     std::uint64_t nextRequestId = 1;
     
     static constexpr std::chrono::seconds ConnectTimeout{10};

@@ -27,6 +27,21 @@ namespace {
 
         throw std::invalid_argument("Invalid movement direction.");
     }
+
+    std::optional<Tile> decodeTile(int value)
+    {
+        switch (value)
+        {
+            case match::TERRAIN_FLOOR:     return Tile::Floor;
+            case match::TERRAIN_WALL:      return Tile::Wall;
+            case match::TERRAIN_CRATE:     return Tile::Crate;
+            case match::TERRAIN_BOMB:      return Tile::Bomb;
+            case match::TERRAIN_EXPLOSION: return Tile::Explosion;
+
+            default:
+                return std::nullopt;
+        }
+    }
 }
 
 Envelope ProtobufAdapter::makeJoin(const std::string& name)
@@ -165,44 +180,57 @@ std::optional<GameEvent> ProtobufAdapter::decode(
         }
 
         case Envelope::kGameStart:
-            return GameEvent{MatchPreparationStarted{}};
+        {
+            return GameEvent{
+                MatchPreparationStarted{
+                    message.game_start().round_id()
+                }
+            };
+        }
 
         case Envelope::kMatchSetup:
         {
             const auto& source = message.match_setup();
+
             if (!source.has_board() || !source.has_rules())
+            {
                 return std::nullopt;
+            }
 
             const auto& board = source.board();
-            if (!Map::validDimensions(board.width(), board.height()) ||
-                static_cast<std::uint64_t>(board.cells_size()) !=
-                    static_cast<std::uint64_t>(board.width()) * board.height())
-                return std::nullopt;
+            const auto& rules = source.rules();
 
             MatchSetupReceived setup;
             setup.roundId = source.round_id();
-            setup.width = board.width();
-            setup.height = board.height();
-            setup.terrain.reserve(board.cells_size());
-            for (const auto terrain : board.cells())
+
+            setup.board.width = board.width();
+            setup.board.height = board.height();
+            setup.board.cells.reserve(board.cells_size());
+
+            for (const auto value : board.cells())
             {
-                switch (terrain)
+                const auto tile = decodeTile(value);
+
+                if (!tile)
                 {
-                    case match::TERRAIN_FLOOR: setup.terrain.push_back(Map::Tile::Empty); break;
-                    case match::TERRAIN_WALL: setup.terrain.push_back(Map::Tile::Wall); break;
-                    case match::TERRAIN_CRATE: setup.terrain.push_back(Map::Tile::Crate); break;
-                    default: return std::nullopt;
+                    return std::nullopt;
                 }
+
+                setup.board.cells.push_back(*tile);
             }
 
-            const auto& rules = source.rules();
             setup.rules = RoundRules{
-                rules.tick_rate_hz(), rules.bomb_capacity(), rules.bomb_fuse_ticks(),
-                rules.blast_duration_ticks(), rules.blast_range(), rules.movement_interval_ticks()
+                rules.tick_rate_hz(),
+                rules.bomb_capacity(),
+                rules.bomb_fuse_ticks(),
+                rules.blast_duration_ticks(),
+                rules.blast_range(),
+                rules.movement_interval_ticks()
             };
+
             setup.spawns.reserve(source.spawns_size());
 
-            for (const auto& spawn : message.match_setup().spawns())
+            for (const auto& spawn : source.spawns())
             {
                 setup.spawns.push_back(PlayerSpawn{
                     spawn.player_id(),

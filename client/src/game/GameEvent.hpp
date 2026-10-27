@@ -52,7 +52,10 @@ struct LobbyLeaderChanged
     std::uint32_t id;
 };
 
-struct MatchPreparationStarted {};
+struct MatchPreparationStarted
+{
+    std::uint64_t roundId = 0;
+};
 
 struct PlayerSpawn
 {
@@ -63,12 +66,10 @@ struct PlayerSpawn
 
 struct MatchSetupReceived
 {
-    std::vector<PlayerSpawn> spawns;
     std::uint64_t roundId = 0;
-    std::uint32_t width = 0;
-    std::uint32_t height = 0;
-    std::vector<Map::Tile> terrain;
+    BoardData board;
     RoundRules rules;
+    std::vector<PlayerSpawn> spawns;
 };
 
 struct MatchStarted
@@ -83,7 +84,6 @@ using GameEvent = std::variant<
     PlayerJoined,
     PlayerLeft,
     PlayerReadyChanged,
-    PlayerSpawn,
     PlayerMoved,
     MatchPreparationStarted,
     MatchSetupReceived,

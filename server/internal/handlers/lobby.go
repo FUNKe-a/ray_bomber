@@ -62,8 +62,10 @@ func handleJoinLobbyRequest(conn net.Conn, msg *protocol.JoinLobbyRequest) error
 }
 
 func handleUpdateReadyState(conn net.Conn, msg *protocol.UpdateReadyState) error {
-	player := lobby.Members[conn]
-	if lobby.Phase != gamelogic.PhaseLobby {
+	player, exists := lobby.Members[conn]
+
+	if !exists || msg == nil ||
+		lobby.Phase != gamelogic.PhaseLobby {
 		return nil
 	}
 

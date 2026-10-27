@@ -34,17 +34,37 @@ void GameRenderer::render(const Game& game) const
 
 void GameRenderer::drawMap(const Map& map) const
 {
-    for (int y = 0; y < static_cast<int>(map.getHeight()); ++y)
+    for (int y = 0; y < map.getHeight(); ++y)
     {
-        for (int x = 0; x < static_cast<int>(map.getWidth()); ++x)
+        for (int x = 0; x < map.getWidth(); ++x)
         {
+            Color color = LIGHTGRAY;
+
+            switch (map.getTile(x, y))
+            {
+                case Tile::Floor:
+                    color = LIGHTGRAY;
+                    break;
+
+                case Tile::Wall:
+                    color = DARKGRAY;
+                    break;
+
+                case Tile::Crate:
+                    color = BROWN;
+                    break;
+
+                case Tile::Bomb:
+                    color = BLACK;
+                    break;
+
+                case Tile::Explosion:
+                    color = ORANGE;
+                    break;
+            }
+
             const int screenX = x * TileSize;
             const int screenY = y * TileSize;
-
-            const Color color =
-                map.getTile(x, y) == Map::Tile::Wall
-                    ? DARKGRAY
-                    : LIGHTGRAY;
 
             DrawRectangle(
                 screenX,
@@ -71,7 +91,7 @@ void GameRenderer::drawPlayers(const Game& game) const
 
     for (const auto& [playerId, player] : game.getPlayers())
     {
-        if (!player.hasPosition())
+        if (!player.hasPosition() || player.isEliminated())
             continue;
 
         const bool isLocalPlayer =
