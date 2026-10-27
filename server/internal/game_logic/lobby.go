@@ -32,6 +32,7 @@ type lobby struct {
 	leaderId     uint32 // Zero means no leader.
 	Phase        MatchPhase
 	matchCounter uint64
+	joinOrder    []net.Conn
 }
 
 var lobbyInstance *lobby
@@ -75,6 +76,7 @@ func (lob *lobby) AddMember(p_conn net.Conn, username string) (uint32, protocol.
 				IsReady:  false,
 			}
 
+			lob.joinOrder = append(lob.joinOrder, p_conn)
 			lob.updateLeader()
 
 			return playerID, color, nil
@@ -93,6 +95,16 @@ func (lob *lobby) RemoveMember(conn net.Conn) (*protocol.PlayerInfo, bool) {
 	isLeader := player.GetId() == lob.leaderId
 
 	delete(lob.Members, conn)
+
+	for i, memberConn := range lob.joinOrder {
+		if memberConn == conn {
+			lob.joinOrder = append(
+				lob.joinOrder[:i],
+				lob.joinOrder[i+1:]...,
+			)
+			break
+		}
+	}
 
 	if len(lob.Members) == 0 {
 		lob.leaderId = 0
@@ -116,9 +128,13 @@ func (lob *lobby) IsFull() bool {
 }
 
 func (lob *lobby) updateLeader() {
-	if lob.leaderId == 0 && len(lob.Members) > 0 {
-		for _, p := range lob.Members {
-			lob.leaderId = p.GetId()
+	if lob.leaderId != 0 {
+		return
+	}
+
+	for _, conn := range lob.joinOrder {
+		if member, exists := lob.Members[conn]; exists {
+			lob.leaderId = member.GetId()
 			return
 		}
 	}

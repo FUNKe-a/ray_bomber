@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"log/slog"
 	"maps"
 	"net"
 
@@ -15,15 +14,21 @@ type matchHandler struct {
 }
 
 func (mh *matchHandler) handleMoveRequest(conn net.Conn, msg *protocol.MoveRequest) error {
-	slog.Debug(
-		"MoveRequest received",
-		"direction", msg.GetDirection(),
-		"round_id", msg.GetRoundId(),
-		"request_id", msg.GetRequestId(),
-	)
+	if mh.Match == nil || msg == nil ||
+		lobby.Phase != gamelogic.PhasePlaying {
+		return nil
+	}
 
-	if !mh.Match.PlayerExists(conn) {
-		slog.Debug("Movement ignored: player not found")
+	member, exists := lobby.Members[conn]
+	if !exists || !mh.Match.PlayerExists(conn) {
+		return nil
+	}
+
+	if msg.GetRoundId() != mh.Match.GetId() {
+		return nil
+	}
+
+	if !mh.Match.AcceptRequest(conn, msg.GetRequestId()) {
 		return nil
 	}
 
@@ -41,42 +46,51 @@ func (mh *matchHandler) handleMoveRequest(conn net.Conn, msg *protocol.MoveReque
 		return nil
 	}
 
-	if newPos, ok := mh.Match.MovePlayer(conn, step); ok {
-		msg := &protocol.Envelope{
-			Payload: &protocol.Envelope_PlayerMovement{
-				PlayerMovement: &protocol.PlayerMovement{
-					Id:        lobby.Members[conn].GetId(),
-					Pos:       newPos,
-					RoundId:   mh.Match.GetId(),
-					RequestId: msg.GetRequestId(),
-				},
-			},
-		}
+	serverTick := mh.Match.GetServerTick()
 
-		if err := netio.BroadcastMessage(maps.Keys(mh.Match.Players), msg); err != nil {
-			return err
-		}
-	} else {
-		slog.Debug("Movement blocked: destination is outside the board or not floor")
-	}
+	position, moved := mh.Match.MovePlayer(
+		conn,
+		step,
+		serverTick,
+	)
 
-	return nil
-}
-
-func (mh *matchHandler) handleClientMatchReady(conn net.Conn) error {
-	player := mh.Match.Players[conn]
-	if lobby.Phase != gamelogic.PhasePreparing {
+	if !moved {
 		return nil
 	}
 
-	player.MatchReady = true
-
-	for _, player := range mh.Match.Players {
-		if !player.MatchReady {
-			return nil
-		}
+	envelope := &protocol.Envelope{
+		Payload: &protocol.Envelope_PlayerMovement{
+			PlayerMovement: &protocol.PlayerMovement{
+				Id:         member.GetId(),
+				Pos:        position,
+				RoundId:    mh.Match.GetId(),
+				ServerTick: serverTick,
+				RequestId:  msg.GetRequestId(),
+			},
+		},
 	}
 
+	return netio.BroadcastMessage(
+		maps.Keys(mh.Match.Players),
+		envelope,
+	)
+}
+
+func (mh *matchHandler) handleClientMatchReady(conn net.Conn, msg *protocol.ClientMatchReady) error {
+	if mh.Match == nil || msg == nil ||
+		lobby.Phase != gamelogic.PhasePreparing {
+		return nil
+	}
+
+	if !mh.Match.SetPlayerReady(conn, msg.GetRoundId()) {
+		return nil
+	}
+
+	if !mh.Match.AllPlayersReady() {
+		return nil
+	}
+
+	mh.Match.Start()
 	lobby.Phase = gamelogic.PhasePlaying
 
 	envelope := &protocol.Envelope{
@@ -92,31 +106,81 @@ func (mh *matchHandler) handleClientMatchReady(conn net.Conn) error {
 }
 
 func (mh *matchHandler) sendMatchSetup() error {
-	spawnInfo := make([]*protocol.PlayerSpawnInfo, 0, len(lobby.Members))
-	for k, v := range lobby.Members {
-		spawnInfo = append(spawnInfo, &protocol.PlayerSpawnInfo{
-			PlayerId: v.GetId(),
-			Pos:      mh.Match.Players[k].GetSpawn(),
+	spawns := make([]*protocol.PlayerSpawnInfo, 0, len(mh.Match.Players))
+	for conn, participant := range mh.Match.Players {
+		spawns = append(spawns, &protocol.PlayerSpawnInfo{
+			PlayerId: lobby.Members[conn].GetId(),
+			Pos:      participant.GetSpawn(),
 		})
 	}
 
 	envelope := &protocol.Envelope{
 		Payload: &protocol.Envelope_MatchSetup{
 			MatchSetup: &protocol.MatchSetup{
-				Spawns:  spawnInfo,
 				RoundId: mh.Match.GetId(),
 				Board:   mh.Match.GetBoard(),
-				Rules: &protocol.RoundRules{
-					TickRateHz:            20,
-					BombCapacity:          1,
-					BombFuseTicks:         60,
-					BlastDurationTicks:    10,
-					BlastRange:            2,
-					MovementIntervalTicks: 3,
-				},
+				Rules:   mh.Match.GetRules(),
+				Spawns:  spawns,
 			},
 		},
 	}
 
 	return netio.BroadcastMessage(maps.Keys(mh.Match.Players), envelope)
+}
+
+// Call after a board-changing simulation tick, once bomb logic exists.
+// Player movement alone does not require a board snapshot.
+func (mh *matchHandler) sendWorldSnapshot(
+	serverTick uint64,
+) error {
+	if mh.Match == nil ||
+		lobby.Phase != gamelogic.PhasePlaying {
+		return nil
+	}
+
+	envelope := &protocol.Envelope{
+		Payload: &protocol.Envelope_WorldSnapshot{
+			WorldSnapshot: &protocol.WorldSnapshot{
+				RoundId:    mh.Match.GetId(),
+				ServerTick: serverTick,
+				Board:      mh.Match.GetBoard(),
+			},
+		},
+	}
+
+	return netio.BroadcastMessage(
+		maps.Keys(mh.Match.Players),
+		envelope,
+	)
+}
+
+func (mh *matchHandler) cancelPreparation(
+	reason protocol.LobbyResetReason,
+) error {
+	if mh.Match == nil {
+		return nil
+	}
+
+	roundID := mh.Match.GetId()
+
+	mh.Match = nil
+	lobby.Phase = gamelogic.PhaseLobby
+
+	for _, member := range lobby.Members {
+		member.IsReady = false
+	}
+
+	envelope := &protocol.Envelope{
+		Payload: &protocol.Envelope_LobbyReset{
+			LobbyReset: &protocol.LobbyReset{
+				RoundId: roundID,
+				Reason:  reason,
+			},
+		},
+	}
+
+	return netio.BroadcastMessage(
+		maps.Keys(lobby.Members),
+		envelope,
+	)
 }

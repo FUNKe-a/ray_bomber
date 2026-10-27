@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"errors"
 	"log/slog"
+	"time"
 
 	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
@@ -11,56 +13,115 @@ import (
 var lobby = gamelogic.GetLobby()
 
 func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
-	var match_h matchHandler
+	var matchH matchHandler
 
-	for wrapper := range messages {
-		var err error
+	var preparationTimer *time.Timer
+	var preparationTimeout <-chan time.Time
 
-		if wrapper.Disconnected {
-			err = handlePlayerDisconnect(wrapper.Conn)
-		} else {
-			switch msg := wrapper.Msg.Payload.(type) {
-			case *protocol.Envelope_MoveRequest:
-				match_h.handleMoveRequest(
-					wrapper.Conn, msg.MoveRequest,
-				)
-
-			case *protocol.Envelope_JoinLobbyRequest:
-				handleJoinLobbyRequest(
-					wrapper.Conn, msg.JoinLobbyRequest,
-				)
-
-			case *protocol.Envelope_UpdateReadyState:
-				handleUpdateReadyState(
-					wrapper.Conn, msg.UpdateReadyState,
-				)
-
-			case *protocol.Envelope_GameStartRequest:
-				match, err := handleGameStartRequest(wrapper.Conn)
-				if err != nil {
-					slog.Warn("Failed to start match", "err", err)
-					break
-				}
-
-				if match == nil {
-					break
-				}
-
-				match_h.Match = match
-
-				if err := match_h.sendMatchSetup(); err != nil {
-					slog.Warn("Failed to send match setup", "err", err)
-				}
-
-			case *protocol.Envelope_ClientMatchReady:
-				match_h.handleClientMatchReady(
-					wrapper.Conn,
-				)
-			}
+	stopPreparationTimer := func() {
+		if preparationTimer != nil {
+			preparationTimer.Stop()
 		}
 
-		if err != nil {
-			slog.Warn("Handler failed", "err", err)
+		preparationTimer = nil
+		preparationTimeout = nil
+	}
+
+	defer stopPreparationTimer()
+
+	for {
+		select {
+		case <-preparationTimeout:
+			stopPreparationTimer()
+
+			if lobby.Phase == gamelogic.PhasePreparing {
+				err := matchH.cancelPreparation(
+					protocol.LobbyResetReason_RESET_PREPARATION_TIMEOUT,
+				)
+				if err != nil {
+					slog.Warn("Preparation reset failed", "err", err)
+				}
+			}
+
+		case wrapper, open := <-messages:
+			if !open {
+				return
+			}
+
+			var err error
+			if wrapper.Disconnected {
+				cancelPreparation :=
+					matchH.Match != nil &&
+						lobby.Phase == gamelogic.PhasePreparing &&
+						matchH.Match.PlayerExists(wrapper.Conn)
+
+				if matchH.Match != nil {
+					delete(matchH.Match.Players, wrapper.Conn)
+				}
+
+				err = handlePlayerDisconnect(wrapper.Conn)
+				if cancelPreparation {
+					stopPreparationTimer()
+
+					err = errors.Join(
+						err,
+						matchH.cancelPreparation(
+							protocol.LobbyResetReason_RESET_PREPARATION_DISCONNECT,
+						),
+					)
+				}
+			} else if wrapper.Msg != nil {
+				switch msg := wrapper.Msg.Payload.(type) {
+				case *protocol.Envelope_MoveRequest:
+					err = matchH.handleMoveRequest(
+						wrapper.Conn, msg.MoveRequest,
+					)
+
+				case *protocol.Envelope_JoinLobbyRequest:
+					err = handleJoinLobbyRequest(
+						wrapper.Conn, msg.JoinLobbyRequest,
+					)
+
+				case *protocol.Envelope_UpdateReadyState:
+					err = handleUpdateReadyState(
+						wrapper.Conn, msg.UpdateReadyState,
+					)
+
+				case *protocol.Envelope_GameStartRequest:
+					nextMatch, startErr :=
+						handleGameStartRequest(wrapper.Conn)
+
+					err = startErr
+					if nextMatch != nil {
+						matchH.Match = nextMatch
+
+						// Retain the match even if a broadcast failed.
+						// Closed connections are removed by their
+						// queued disconnect events.
+						err = errors.Join(
+							err, matchH.sendMatchSetup(),
+						)
+
+						stopPreparationTimer()
+						preparationTimer = time.NewTimer(15 * time.Second)
+						preparationTimeout = preparationTimer.C
+					}
+
+				case *protocol.Envelope_ClientMatchReady:
+					err = matchH.handleClientMatchReady(
+						wrapper.Conn,
+						msg.ClientMatchReady,
+					)
+
+					if lobby.Phase == gamelogic.PhasePlaying {
+						stopPreparationTimer()
+					}
+				}
+			}
+
+			if err != nil {
+				slog.Warn("Handler failed", "err", err)
+			}
 		}
 	}
 }
