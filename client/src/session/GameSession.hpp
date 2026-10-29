@@ -41,6 +41,8 @@ public:
     const std::string& getError() const;
     const Game& getGame() const;
 
+    Game::PresentationSubscription observe(Game::PresentationCallback callback);
+
 private:
     using Clock = std::chrono::steady_clock;
 

@@ -13,4 +13,6 @@ target_sources(game_logic
 	  Player.hpp
     GameTypes.hpp
     GameEvent.hpp
+    EventSignal.hpp
+    GameNotification.hpp
 )

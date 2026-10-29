@@ -21,6 +21,7 @@ public:
     void setColor(PlayerColor color);
     bool isReady() const;
     void setReady(bool ready);
+    void eliminate();
 
 private:
     std::uint32_t id;

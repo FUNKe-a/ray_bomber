@@ -78,6 +78,29 @@ struct MatchStarted
     std::uint64_t serverTick = 0;
 };
 
+struct WorldSnapshotReceived
+{
+    std::uint64_t roundId = 0;
+    std::uint64_t serverTick = 0;
+    BoardData board;
+};
+
+struct PlayerEliminatedReceived
+{
+    std::uint64_t roundId = 0;
+    std::uint64_t serverTick = 0;
+    std::uint32_t playerId = 0;
+    EliminationReason reason = EliminationReason::Blast;
+};
+
+struct ActionRejectedReceived
+{
+    std::uint64_t roundId = 0;
+    std::uint64_t requestId = 0;
+    ActionRejectionReason reason =
+        ActionRejectionReason::InvalidRequest;
+};
+
 using GameEvent = std::variant<
     LobbyJoined,
     LobbyLeaderChanged,
@@ -87,5 +110,8 @@ using GameEvent = std::variant<
     PlayerMoved,
     MatchPreparationStarted,
     MatchSetupReceived,
-    MatchStarted
+    MatchStarted,
+    WorldSnapshotReceived,
+    PlayerEliminatedReceived,
+    ActionRejectedReceived
 >;

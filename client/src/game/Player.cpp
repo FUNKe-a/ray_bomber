@@ -72,3 +72,8 @@ void Player::resetRoundState()
     positioned = false;
     eliminated = false;
 }
+
+void Player::eliminate()
+{
+    eliminated = true;
+}

@@ -42,6 +42,52 @@ namespace {
                 return std::nullopt;
         }
     }
+
+    std::optional<EliminationReason> decodeEliminationReason(match::EliminationReason reason)
+    {
+        switch (reason)
+        {
+            case match::ELIMINATION_BLAST:        return EliminationReason::Blast;
+            case match::ELIMINATION_DISCONNECTED: return EliminationReason::Disconnected;
+            default:
+                return std::nullopt;
+        }
+    }
+
+    std::optional<ActionRejectionReason> decodeRejectionReason(
+    match::RejectionReason reason)
+    {
+        switch (reason)
+        {
+            case match::REJECTION_WRONG_PHASE:           return ActionRejectionReason::WrongPhase;
+            case match::REJECTION_STALE_ROUND:           return ActionRejectionReason::StaleRound;
+            case match::REJECTION_PLAYER_ELIMINATED:     return ActionRejectionReason::PlayerEliminated;
+            case match::REJECTION_BOMB_CAPACITY_REACHED: return ActionRejectionReason::BombCapacityReached;
+            case match::REJECTION_TILE_BLOCKED:          return ActionRejectionReason::TileBlocked;
+            case match::REJECTION_MOVE_COOLDOWN:         return ActionRejectionReason::MoveCooldown;
+            case match::REJECTION_NOT_LEADER:            return ActionRejectionReason::NotLeader;
+            case match::REJECTION_INVALID_REQUEST:       return ActionRejectionReason::InvalidRequest;
+            default:
+                return std::nullopt;
+        }
+    }
+
+    std::optional<BoardData> decodeBoard(const match::Board& source)
+    {
+        BoardData board;
+        board.width = source.width();
+        board.height = source.height();
+        board.cells.reserve(source.cells_size());
+
+        for (const auto value : source.cells())
+        {
+            const auto tile = decodeTile(value);
+            if (!tile) return std::nullopt;
+            board.cells.push_back(*tile);
+        }
+
+        return board;
+    }
 }
 
 Envelope ProtobufAdapter::makeJoin(const std::string& name)
@@ -94,7 +140,8 @@ std::optional<GameEvent> ProtobufAdapter::decode(
     const Envelope& message)
 {
     switch (message.payload_case()) {
-        case Envelope::kJoinLobbyResponse: {
+        case Envelope::kJoinLobbyResponse: 
+        {
 			LobbyJoined setup;
             const auto& response = message.join_lobby_response();
             const auto color = decodeColor(response.color());
@@ -126,7 +173,8 @@ std::optional<GameEvent> ProtobufAdapter::decode(
             };
         }
 
-        case Envelope::kPlayerMovement: {
+        case Envelope::kPlayerMovement: 
+        {
             const auto& movement = message.player_movement();
 
             return GameEvent{
@@ -141,7 +189,8 @@ std::optional<GameEvent> ProtobufAdapter::decode(
             };
         }
 
-        case Envelope::kPlayerEvent: {
+        case Envelope::kPlayerEvent: 
+        {
             const auto& event = message.player_event();
 
             switch (event.event_type_case()) {
@@ -251,11 +300,56 @@ std::optional<GameEvent> ProtobufAdapter::decode(
         }
 
         case Envelope::kStartMatch:
+        {
             return GameEvent{MatchStarted{
                 message.start_match().round_id(),
                 message.start_match().server_tick()
             }};
+        }
 
+        case Envelope::kWorldSnapshot:
+        {
+            const auto& source = message.world_snapshot();
+
+            if (!source.has_board())
+                return std::nullopt;
+
+            auto board = decodeBoard(source.board());
+
+            if (!board)
+                return std::nullopt;
+
+            return GameEvent{
+                WorldSnapshotReceived{source.round_id(), source.server_tick(), std::move(*board)}
+            };
+        }
+
+        case Envelope::kPlayerEliminated:
+        {
+            const auto& source = message.player_eliminated();
+            const auto reason = decodeEliminationReason(source.reason());
+
+            if (!reason)
+                return std::nullopt;
+
+            return GameEvent{
+                PlayerEliminatedReceived{source.round_id(), source.server_tick(), source.player_id(), *reason}
+            };
+        }
+
+        case Envelope::kActionRejected:
+        {
+            const auto& source = message.action_rejected();
+            const auto reason = decodeRejectionReason(source.reason());
+
+            if (!reason)
+                return std::nullopt;
+
+            return GameEvent{
+                ActionRejectedReceived{source.round_id(), source.request_id(), *reason}
+            };
+        }
+        
         default:
             return std::nullopt;
     }

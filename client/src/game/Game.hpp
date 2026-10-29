@@ -3,6 +3,9 @@
 #include "Map.hpp"
 #include "Player.hpp"
 #include "GameEvent.hpp"
+#include "EventSignal.hpp"
+#include "GameNotification.hpp"
+
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -22,9 +25,15 @@ public:
     const Player* getPlayer(std::uint32_t id) const;
     const Player* getLocalPlayer() const;
     std::uint32_t getLocalPlayerId() const;
+    std::optional<std::uint64_t> getLastBoardTick() const;
+    const std::optional<ActionRejectedReceived>& getLastActionRejection() const;
     bool hasJoinedLobby() const;
     std::optional<std::uint32_t> getLeaderId() const;
     bool isLocalPlayerLeader() const;
+    
+    using PresentationCallback = EventSignal<GameNotification>::Callback;
+    using PresentationSubscription = EventSignal<GameNotification>::Subscription;
+    PresentationSubscription observe(PresentationCallback callback);
 
 private:
     Player& ensurePlayer(std::uint32_t id);
@@ -38,6 +47,9 @@ private:
     void apply(const MatchPreparationStarted& event);
     void apply(const MatchSetupReceived& event);
     void apply(const MatchStarted& event);
+    void apply(const WorldSnapshotReceived& event);
+    void apply(const PlayerEliminatedReceived& event);
+    void apply(const ActionRejectedReceived& event);
 
     Map map;
     std::uint64_t roundId = 0;
@@ -48,4 +60,9 @@ private:
     std::uint32_t localPlayerId = 0;
     bool joinedLobby = false;
     std::optional<std::uint32_t> leaderId;
+    std::uint64_t roundStartTick = 0;
+    std::optional<std::uint64_t> lastBoardTick;
+    std::unordered_map<std::uint32_t, std::uint64_t> lastMovementTicks;
+    std::optional<ActionRejectedReceived> lastActionRejection;
+    EventSignal<GameNotification> presentationEvents;
 };

@@ -27,6 +27,24 @@ enum class PlayerColor {
     Yellow
 };
 
+enum class EliminationReason
+{
+    Blast,
+    Disconnected
+};
+
+enum class ActionRejectionReason
+{
+    WrongPhase,
+    StaleRound,
+    PlayerEliminated,
+    BombCapacityReached,
+    TileBlocked,
+    MoveCooldown,
+    NotLeader,
+    InvalidRequest
+};
+
 // Data received from the server, before model validation.
 struct BoardData
 {
