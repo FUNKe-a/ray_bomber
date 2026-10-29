@@ -195,15 +195,20 @@ void GameSession::setReady(bool ready)
 
 void GameSession::move(Direction direction)
 {
-    if (state == State::Playing)
-    {
-        if (nextRequestId == std::numeric_limits<std::uint64_t>::max())
-        {
-            fail("Gameplay request IDs exhausted.");
-            return;
-        }
-        client.move(direction, game.getRoundId(), nextRequestId++);
-    }
+    const auto requestId = takeGameplayRequestId();
+    if (!requestId)
+        return;
+
+    client.move(direction, game.getRoundId(), *requestId);
+}
+
+void GameSession::placeBomb()
+{
+    const auto requestId = takeGameplayRequestId();
+    if (!requestId)
+        return;
+
+    client.placeBomb(game.getRoundId(), *requestId);
 }
 
 void GameSession::requestGameStart()
@@ -242,4 +247,23 @@ void GameSession::fail(std::string message)
 
     errorMessage = std::move(message);
     state = State::Failed;
+}
+
+std::optional<std::uint64_t> GameSession::takeGameplayRequestId()
+{
+    if (state != State::Playing || !client.isConnected())
+        return std::nullopt;
+
+    const auto* player = game.getLocalPlayer();
+
+    if (player == nullptr || !player->hasPosition() || player->isEliminated())
+        return std::nullopt;
+
+    if (nextRequestId == 0)
+    {
+        fail("Gameplay request IDs exhausted.");
+        return std::nullopt;
+    }
+
+    return nextRequestId++;
 }

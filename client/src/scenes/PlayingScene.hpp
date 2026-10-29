@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Scene.hpp"
-
 #include "GameRenderer.hpp"
+#include "GameplayInput.hpp"
 
 #include <optional>
 
@@ -18,5 +18,6 @@ public:
 
 private:
     GameSession& session;
+    GameplayInput input;
     GameRenderer renderer;
 };

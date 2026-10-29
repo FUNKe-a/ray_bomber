@@ -5,25 +5,9 @@
 
 #include <raylib.h>
 
-#include <array>
 #include <string>
 #include <utility>
 
-namespace
-{
-    struct MovementBinding
-    {
-        KeyboardKey key;
-        Direction direction;
-    };
-
-    constexpr std::array<MovementBinding, 4> MovementBindings{{
-        {KEY_UP, Direction::Up},
-        {KEY_DOWN, Direction::Down},
-        {KEY_LEFT, Direction::Left},
-        {KEY_RIGHT, Direction::Right}
-    }};
-}
 
 PlayingScene::PlayingScene(GameSession& session)
     : session(session)
@@ -67,13 +51,7 @@ std::optional<SceneTransition> PlayingScene::update()
         return std::nullopt;
     }
 
-    for (const auto& binding : MovementBindings)
-    {
-        if (IsKeyPressed(binding.key))
-        {
-            session.move(binding.direction);
-        }
-    }
+    input.handleInput(session);
 
     return std::nullopt;
 }

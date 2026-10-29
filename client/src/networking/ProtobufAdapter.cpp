@@ -68,6 +68,14 @@ Envelope ProtobufAdapter::makeMove(
     return message;
 }
 
+Envelope ProtobufAdapter::makePlaceBomb(std::uint64_t roundId,std::uint64_t requestId)
+{
+    Envelope message;
+    message.mutable_place_bomb_request()->set_round_id(roundId);
+    message.mutable_place_bomb_request()->set_request_id(requestId);
+    return message;
+}
+
 Envelope ProtobufAdapter::makeGameStart()
 {
     Envelope message;
