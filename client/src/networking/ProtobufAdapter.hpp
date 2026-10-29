@@ -14,6 +14,7 @@ namespace ProtobufAdapter {
     Envelope makePlaceBomb(std::uint64_t roundId, std::uint64_t requestId);
     Envelope makeGameStart();
     Envelope makeMatchReady(std::uint64_t roundId);
+    Envelope makeReturnToLobby(std::uint64_t roundId, std::uint64_t requestId);
 
     std::optional<GameEvent> decode(const Envelope& message);
 }

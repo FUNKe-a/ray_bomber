@@ -29,6 +29,8 @@ target_sources(ray_bomber
     scenes/SceneFactory.hpp
     scenes/PlayingScene.cpp
     scenes/PlayingScene.hpp
+    scenes/ResultsScene.hpp
+    scenes/ResultsScene.cpp 
     input/GameplayCommand.hpp
     input/GameplayCommand.cpp
     input/GameplayInput.hpp

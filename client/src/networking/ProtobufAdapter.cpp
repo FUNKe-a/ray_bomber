@@ -136,6 +136,14 @@ Envelope ProtobufAdapter::makeMatchReady(std::uint64_t roundId)
     return message;
 }
 
+Envelope ProtobufAdapter::makeReturnToLobby(std::uint64_t roundId, std::uint64_t requestId)
+{
+    Envelope message;
+    message.mutable_return_to_lobby_request()->set_round_id(roundId);
+    message.mutable_return_to_lobby_request()->set_request_id(requestId);
+    return message;
+}
+
 std::optional<GameEvent> ProtobufAdapter::decode(
     const Envelope& message)
 {
@@ -348,6 +356,72 @@ std::optional<GameEvent> ProtobufAdapter::decode(
             return GameEvent{
                 ActionRejectedReceived{source.round_id(), source.request_id(), *reason}
             };
+        }
+        
+        case Envelope::kMatchEnded:
+        {
+            const auto& source = message.match_ended();
+
+            RoundResult result;
+            result.roundId = source.round_id();
+            result.serverTick = source.server_tick();
+
+            switch (source.outcome())
+            {
+                case match::OUTCOME_WINNER:
+                    if (!source.has_winner_id())
+                    {
+                        return std::nullopt;
+                    }
+
+                    result.outcome = RoundOutcome::Winner;
+                    result.winnerId = source.winner_id();
+                    break;
+
+                case match::OUTCOME_DRAW:
+                    if (source.has_winner_id())
+                    {
+                        return std::nullopt;
+                    }
+
+                    result.outcome = RoundOutcome::Draw;
+                    break;
+
+                default:
+                    return std::nullopt;
+            }
+
+            return GameEvent{
+                MatchEndedReceived{std::move(result)}
+            };
+        }
+
+        case Envelope::kLobbyReset:
+        {
+            const auto& source = message.lobby_reset();
+
+            LobbyResetReceived reset;
+            reset.roundId = source.round_id();
+
+            switch (source.reason())
+            {
+                case match::RESET_ROUND_FINISHED:
+                    reset.reason = LobbyResetReason::RoundFinished;
+                    break;
+
+                case match::RESET_PREPARATION_DISCONNECT:
+                    reset.reason = LobbyResetReason::PreparationDisconnect;
+                    break;
+
+                case match::RESET_PREPARATION_TIMEOUT:
+                    reset.reason = LobbyResetReason::PreparationTimeout;
+                    break;
+
+                default:
+                    return std::nullopt;
+            }
+
+            return GameEvent{reset};
         }
         
         default:

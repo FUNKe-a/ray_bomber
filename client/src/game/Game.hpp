@@ -30,6 +30,7 @@ public:
     bool hasJoinedLobby() const;
     std::optional<std::uint32_t> getLeaderId() const;
     bool isLocalPlayerLeader() const;
+    void resetRound();
     
     using PresentationCallback = EventSignal<GameNotification>::Callback;
     using PresentationSubscription = EventSignal<GameNotification>::Subscription;
@@ -50,6 +51,8 @@ private:
     void apply(const WorldSnapshotReceived& event);
     void apply(const PlayerEliminatedReceived& event);
     void apply(const ActionRejectedReceived& event);
+    void apply(const MatchEndedReceived& event);
+    void apply(const LobbyResetReceived& event);    
 
     Map map;
     std::uint64_t roundId = 0;

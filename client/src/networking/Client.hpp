@@ -34,6 +34,7 @@ public:
     void placeBomb(std::uint64_t roundId, std::uint64_t requestId);
     void requestGameStart();
     void matchReady(std::uint64_t roundId);
+    void returnToLobby(std::uint64_t roundId, std::uint64_t requestId);
 
     bool receive(GameEvent& event);
 

@@ -101,6 +101,17 @@ struct ActionRejectedReceived
         ActionRejectionReason::InvalidRequest;
 };
 
+struct MatchEndedReceived
+{
+    RoundResult result;
+};
+
+struct LobbyResetReceived
+{
+    std::uint64_t roundId = 0;
+    LobbyResetReason reason = LobbyResetReason::RoundFinished;
+};
+
 using GameEvent = std::variant<
     LobbyJoined,
     LobbyLeaderChanged,
@@ -113,5 +124,7 @@ using GameEvent = std::variant<
     MatchStarted,
     WorldSnapshotReceived,
     PlayerEliminatedReceived,
-    ActionRejectedReceived
+    ActionRejectedReceived,
+    MatchEndedReceived,
+    LobbyResetReceived
 >;

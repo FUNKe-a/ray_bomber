@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <vector>
+#include <optional>
+#include <string>
 
 enum class Tile
 {
@@ -43,6 +45,31 @@ enum class ActionRejectionReason
     MoveCooldown,
     NotLeader,
     InvalidRequest
+};
+
+enum class RoundOutcome
+{
+    Winner,
+    Draw
+};
+
+enum class LobbyResetReason
+{
+    RoundFinished,
+    PreparationDisconnect,
+    PreparationTimeout
+};
+
+struct RoundResult
+{
+    std::uint64_t roundId = 0;
+    std::uint64_t serverTick = 0;
+
+    RoundOutcome outcome = RoundOutcome::Draw;
+    std::optional<std::uint32_t> winnerId;
+
+    // Cached when results arrive, so later disconnects do not erase it.
+    std::string winnerName;
 };
 
 // Data received from the server, before model validation.

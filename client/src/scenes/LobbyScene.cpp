@@ -84,7 +84,7 @@ std::optional<SceneTransition> LobbyScene::update()
     if (UI::isClicked(disconnectButton()) || IsKeyPressed(KEY_ESCAPE))
     {
         session.disconnect();
-        SceneTransition{SceneType::Menu, {}};
+        return SceneTransition{SceneType::Menu, {}};
     }
 
     if (state == GameSession::State::Playing)
@@ -106,6 +106,11 @@ std::optional<SceneTransition> LobbyScene::update()
         {
             session.requestGameStart();
         }
+    }
+
+    if (state == GameSession::State::Finished)
+    {
+        return SceneTransition{SceneType::Results, {}};
     }
 
     return std::nullopt;
@@ -280,4 +285,15 @@ void LobbyScene::render() const
         true,
         DisconnectTheme
     );
+
+    if (!session.getNotice().empty())
+    {
+        DrawText(
+            session.getNotice().c_str(),
+            20,
+            GetScreenHeight() - 180,
+            20,
+            MAROON
+        );
+    }
 }

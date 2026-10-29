@@ -5,6 +5,7 @@
 #include "MenuScene.hpp"
 #include "SettingsScene.hpp"
 #include "PlayingScene.hpp"
+#include "ResultsScene.hpp"
 
 #include <stdexcept>
 #include <utility>
@@ -96,6 +97,23 @@ namespace
     private:
         GameSession& session;
     };
+
+    class ResultsSceneCreator final : public SceneCreator
+    {
+    public:
+        explicit ResultsSceneCreator(GameSession& session)
+            : session(session)
+        {
+        }
+
+        std::unique_ptr<Scene> create(std::string) const override
+        {
+            return std::make_unique<ResultsScene>(session);
+        }
+
+    private:
+        GameSession& session;
+    };
 }
 
 SceneFactory::SceneFactory(
@@ -121,6 +139,10 @@ SceneFactory::SceneFactory(
 
     creators.emplace(
         SceneType::Playing, std::make_unique<PlayingSceneCreator>(session)
+    );
+
+    creators.emplace(
+        SceneType::Results, std::make_unique<ResultsSceneCreator>(session)
     );
 }
 

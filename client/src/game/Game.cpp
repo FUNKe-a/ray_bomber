@@ -131,6 +131,7 @@ void Game::apply(const LobbyJoined& event)
 		auto& other = ensurePlayer(player.id);
 		other.setName(player.username);
 		other.setColor(player.color);
+        other.setReady(player.is_ready);
 	}
 }
 
@@ -270,6 +271,16 @@ void Game::apply(const ActionRejectedReceived& event)
     });
 }
 
+void Game::apply(const MatchEndedReceived&)
+{
+    // GameSession coordinates round completion.
+}
+
+void Game::apply(const LobbyResetReceived&)
+{
+    // GameSession validates the reset and calls resetRound().
+}
+
 std::uint64_t Game::getRoundId() const 
 { 
     return roundId; 
@@ -341,4 +352,25 @@ const std::optional<ActionRejectedReceived>& Game::getLastActionRejection() cons
 Game::PresentationSubscription Game::observe(PresentationCallback callback)
 {
     return presentationEvents.subscribe(std::move(callback));
+}
+
+void Game::resetRound()
+{
+    Map emptyMap;
+    map.swap(emptyMap);
+
+    roundId = 0;
+    serverTick = 0;
+    roundStartTick = 0;
+    roundRules = RoundRules{};
+
+    lastBoardTick.reset();
+    lastMovementTicks.clear();
+    lastActionRejection.reset();
+
+    for (auto& entry : players)
+    {
+        entry.second.resetRoundState();
+        entry.second.setReady(false);
+    }
 }
