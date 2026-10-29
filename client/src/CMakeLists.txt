@@ -35,6 +35,7 @@ target_sources(ray_bomber
     input/GameplayCommand.cpp
     input/GameplayInput.hpp
     input/GameplayInput.cpp
+    input/SettingsCommand.hpp
 )
 
 target_include_directories(ray_bomber
