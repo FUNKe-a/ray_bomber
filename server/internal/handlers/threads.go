@@ -15,8 +15,20 @@ var lobby = gamelogic.GetLobby()
 func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 	var matchH matchHandler
 
+	var ticker *time.Ticker
+	var ticks <-chan time.Time
+
 	var preparationTimer *time.Timer
 	var preparationTimeout <-chan time.Time
+
+	stopTicks := func() {
+		if ticker != nil {
+			ticker.Stop()
+		}
+
+		ticker = nil
+		ticks = nil
+	}
 
 	stopPreparationTimer := func() {
 		if preparationTimer != nil {
@@ -27,10 +39,16 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 		preparationTimeout = nil
 	}
 
+	defer stopTicks()
 	defer stopPreparationTimer()
 
 	for {
 		select {
+		case <-ticks:
+			if err := matchH.handleTick(); err != nil {
+				slog.Warn("Simulation tick failed", "err", err)
+			}
+
 		case <-preparationTimeout:
 			stopPreparationTimer()
 
@@ -38,6 +56,7 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 				err := matchH.cancelPreparation(
 					protocol.LobbyResetReason_RESET_PREPARATION_TIMEOUT,
 				)
+
 				if err != nil {
 					slog.Warn("Preparation reset failed", "err", err)
 				}
@@ -49,6 +68,7 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 			}
 
 			var err error
+
 			if wrapper.Disconnected {
 				cancelPreparation :=
 					matchH.Match != nil &&
@@ -60,6 +80,7 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 				}
 
 				err = handlePlayerDisconnect(wrapper.Conn)
+
 				if cancelPreparation {
 					stopPreparationTimer()
 
@@ -70,40 +91,44 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 						),
 					)
 				}
+
+				if len(lobby.Members) == 0 {
+					stopTicks()
+					stopPreparationTimer()
+					matchH.Match = nil
+				}
 			} else if wrapper.Msg != nil {
 				switch msg := wrapper.Msg.Payload.(type) {
 				case *protocol.Envelope_MoveRequest:
-					err = matchH.handleMoveRequest(
-						wrapper.Conn, msg.MoveRequest,
-					)
+					err = matchH.handleMoveRequest(wrapper.Conn, msg.MoveRequest)
+
+				case *protocol.Envelope_PlaceBombRequest:
+					err = matchH.handlePlaceBombRequest(wrapper.Conn, msg.PlaceBombRequest)
 
 				case *protocol.Envelope_JoinLobbyRequest:
-					err = handleJoinLobbyRequest(
-						wrapper.Conn, msg.JoinLobbyRequest,
-					)
+					err = handleJoinLobbyRequest(wrapper.Conn, msg.JoinLobbyRequest)
 
 				case *protocol.Envelope_UpdateReadyState:
-					err = handleUpdateReadyState(
-						wrapper.Conn, msg.UpdateReadyState,
-					)
+					err = handleUpdateReadyState(wrapper.Conn, msg.UpdateReadyState)
 
 				case *protocol.Envelope_GameStartRequest:
-					nextMatch, startErr :=
-						handleGameStartRequest(wrapper.Conn)
+					nextMatch, startErr := handleGameStartRequest(wrapper.Conn)
 
 					err = startErr
+
 					if nextMatch != nil {
+						stopTicks()
+						stopPreparationTimer()
+
 						matchH.Match = nextMatch
 
-						// Retain the match even if a broadcast failed.
-						// Closed connections are removed by their
-						// queued disconnect events.
 						err = errors.Join(
-							err, matchH.sendMatchSetup(),
+							err,
+							matchH.sendMatchSetup(),
 						)
 
-						stopPreparationTimer()
 						preparationTimer = time.NewTimer(15 * time.Second)
+
 						preparationTimeout = preparationTimer.C
 					}
 
@@ -113,8 +138,17 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 						msg.ClientMatchReady,
 					)
 
-					if lobby.Phase == gamelogic.PhasePlaying {
+					if lobby.Phase == gamelogic.PhasePlaying &&
+						ticker == nil {
 						stopPreparationTimer()
+
+						rate := matchH.Match.GetRules().GetTickRateHz()
+
+						ticker = time.NewTicker(
+							time.Second / time.Duration(rate),
+						)
+
+						ticks = ticker.C
 					}
 				}
 			}

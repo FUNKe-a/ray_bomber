@@ -4,7 +4,6 @@ import (
 	"iter"
 	"math/rand"
 	"net"
-	"time"
 
 	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
 	"google.golang.org/protobuf/proto"
@@ -12,37 +11,67 @@ import (
 
 type MatchPlayer struct {
 	spawn    *protocol.Cell
-	position *protocol.Cell
+	position Position
 
 	MatchReady bool
+	Eliminated bool
 
+	activeBombs   uint32
 	lastRequestID uint64
 	nextMoveTick  uint64
 }
 
 func (player *MatchPlayer) GetSpawn() *protocol.Cell {
-	return proto.Clone(player.spawn).(*protocol.Cell)
+	return &protocol.Cell{
+		X: player.spawn.GetX(),
+		Y: player.spawn.GetY(),
+	}
 }
 
-// 20 values are reserved for tile types
-// 0 means empty tile
 type Match struct {
 	id      uint64
 	Players map[net.Conn]*MatchPlayer
 
+	// This board contains only floor, walls, and crates.
 	board *protocol.Board
 	rules *protocol.RoundRules
 
-	startedAt time.Time
+	started    bool
+	serverTick uint64
+
+	bombs      map[uint64]*Bomb
+	bombAt     map[Position]uint64
+	blasts     map[Position]uint64
+	nextBombID uint64
+
+	explosionStrategy ExplosionStrategy
+	lastSnapshot      []protocol.Terrain
 }
 
 func (m *Match) GetId() uint64 {
 	return m.id
 }
 
-// GetBoard returns a deep copy of the inner match board
 func (m *Match) GetBoard() *protocol.Board {
-	return proto.Clone(m.board).(*protocol.Board)
+	board := proto.Clone(m.board).(*protocol.Board)
+	width := int(board.GetWidth())
+
+	for position := range m.bombAt {
+		index := int(position.Y)*width + int(position.X)
+		board.Cells[index] = protocol.Terrain_TERRAIN_BOMB
+	}
+
+	// Explosions take visual priority over bombs.
+	for position, expiresAt := range m.blasts {
+		if expiresAt <= m.serverTick {
+			continue
+		}
+
+		index := int(position.Y)*width + int(position.X)
+		board.Cells[index] = protocol.Terrain_TERRAIN_EXPLOSION
+	}
+
+	return board
 }
 
 func (m *Match) GetRules() *protocol.RoundRules {
@@ -50,18 +79,12 @@ func (m *Match) GetRules() *protocol.RoundRules {
 }
 
 func (m *Match) Start() {
-	m.startedAt = time.Now()
+	m.started = true
+	m.serverTick = 0
 }
 
 func (m *Match) GetServerTick() uint64 {
-	if m.startedAt.IsZero() {
-		return 0
-	}
-
-	tickDuration :=
-		time.Second / time.Duration(m.rules.GetTickRateHz())
-
-	return uint64(time.Since(m.startedAt) / tickDuration)
+	return m.serverTick
 }
 
 func (m *Match) SetPlayerReady(
@@ -95,22 +118,6 @@ func (m *Match) AllPlayersReady() bool {
 	return true
 }
 
-// Shared by gameplay requests, including bomb placement later.
-func (m *Match) AcceptRequest(
-	conn net.Conn,
-	requestID uint64,
-) bool {
-	player, exists := m.Players[conn]
-	if !exists ||
-		requestID == 0 ||
-		requestID <= player.lastRequestID {
-		return false
-	}
-
-	player.lastRequestID = requestID
-	return true
-}
-
 func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 	spawnPoints := []*protocol.Cell{
 		{X: 1, Y: 1},
@@ -134,6 +141,13 @@ func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 			BlastRange:            2,
 			MovementIntervalTicks: 3,
 		},
+
+		bombs:      make(map[uint64]*Bomb),
+		bombAt:     make(map[Position]uint64),
+		blasts:     make(map[Position]uint64),
+		nextBombID: 1,
+
+		explosionStrategy: CrossBlastStrategy{},
 	}
 
 	i := 0
@@ -146,7 +160,7 @@ func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 				X: spawn.GetX(),
 				Y: spawn.GetY(),
 			},
-			position: &protocol.Cell{
+			position: Position{
 				X: spawn.GetX(),
 				Y: spawn.GetY(),
 			},
@@ -200,6 +214,11 @@ func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 		}
 	}
 
+	matchInstance.lastSnapshot = append(
+		[]protocol.Terrain(nil),
+		matchInstance.board.Cells...,
+	)
+
 	return matchInstance
 }
 
@@ -213,40 +232,82 @@ func (m *Match) PlayerExists(memberConn net.Conn) bool {
 func (m *Match) MovePlayer(
 	conn net.Conn,
 	step *protocol.Cell,
-	serverTick uint64,
-) (*protocol.Cell, bool) {
+) (*protocol.Cell, protocol.RejectionReason) {
 	player, exists := m.Players[conn]
-	if !exists || serverTick < player.nextMoveTick {
-		return nil, false
+	if !exists {
+		return nil,
+			protocol.RejectionReason_REJECTION_INVALID_REQUEST
 	}
 
-	pos := &protocol.Cell{
-		X: player.position.GetX() + step.GetX(),
-		Y: player.position.GetY() + step.GetY(),
+	if m.serverTick < player.nextMoveTick {
+		return nil,
+			protocol.RejectionReason_REJECTION_MOVE_COOLDOWN
 	}
 
-	height := int32(m.board.GetHeight())
+	position := Position{
+		X: player.position.X + step.GetX(),
+		Y: player.position.Y + step.GetY(),
+	}
+
 	width := int32(m.board.GetWidth())
+	height := int32(m.board.GetHeight())
 
-	if pos.GetX() < 0 || pos.GetX() >= width ||
-		pos.GetY() < 0 || pos.GetY() >= height {
-		return nil, false
+	if position.X < 0 || position.X >= width ||
+		position.Y < 0 || position.Y >= height {
+		return nil,
+			protocol.RejectionReason_REJECTION_TILE_BLOCKED
 	}
 
-	index := int(pos.GetY())*int(width) + int(pos.GetX())
+	index := int(position.Y)*int(width) + int(position.X)
 
-	if index >= len(m.board.Cells) ||
-		m.board.Cells[index] != protocol.Terrain_TERRAIN_FLOOR {
-		return nil, false
+	if m.board.Cells[index] != protocol.Terrain_TERRAIN_FLOOR {
+		return nil,
+			protocol.RejectionReason_REJECTION_TILE_BLOCKED
 	}
 
-	player.position = pos
+	if _, occupied := m.bombAt[position]; occupied {
+		return nil,
+			protocol.RejectionReason_REJECTION_TILE_BLOCKED
+	}
+
+	player.position = position
 	player.nextMoveTick =
-		serverTick + uint64(m.rules.GetMovementIntervalTicks())
+		m.serverTick + uint64(m.rules.GetMovementIntervalTicks())
 
-	return proto.Clone(pos).(*protocol.Cell), true
+	return &protocol.Cell{
+		X: position.X,
+		Y: position.Y,
+	}, protocol.RejectionReason_REJECTION_UNSPECIFIED
 }
 
-// TODO: implement bomb placement
-func (m *Match) PlayerPlaceBomb(lobbyMember net.Conn, newPos *protocol.Cell) {
+func (m *Match) ValidateAction(
+	conn net.Conn,
+	roundID uint64,
+	requestID uint64,
+) protocol.RejectionReason {
+	if !m.started {
+		return protocol.RejectionReason_REJECTION_WRONG_PHASE
+	}
+
+	if roundID != m.id {
+		return protocol.RejectionReason_REJECTION_STALE_ROUND
+	}
+
+	player, exists := m.Players[conn]
+	if !exists {
+		return protocol.RejectionReason_REJECTION_INVALID_REQUEST
+	}
+
+	if requestID == 0 || requestID <= player.lastRequestID {
+		return protocol.RejectionReason_REJECTION_INVALID_REQUEST
+	}
+
+	// A rejected gameplay attempt also consumes its request ID.
+	player.lastRequestID = requestID
+
+	if player.Eliminated {
+		return protocol.RejectionReason_REJECTION_PLAYER_ELIMINATED
+	}
+
+	return protocol.RejectionReason_REJECTION_UNSPECIFIED
 }
