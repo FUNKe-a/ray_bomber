@@ -31,6 +31,7 @@ public:
     void joinLobby(const std::string& name);
     void setReady(bool ready);
     void move(Direction direction, std::uint64_t roundId, std::uint64_t requestId);
+    void placeBomb(std::uint64_t roundId, std::uint64_t requestId);
     void requestGameStart();
     void matchReady(std::uint64_t roundId);
 

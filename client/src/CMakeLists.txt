@@ -29,12 +29,17 @@ target_sources(ray_bomber
     scenes/SceneFactory.hpp
     scenes/PlayingScene.cpp
     scenes/PlayingScene.hpp
+    input/GameplayCommand.hpp
+    input/GameplayCommand.cpp
+    input/GameplayInput.hpp
+    input/GameplayInput.cpp
 )
 
 target_include_directories(ray_bomber
   PRIVATE
     application
     scenes
+    input
 )
 
 add_subdirectory(game)

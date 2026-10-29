@@ -147,6 +147,11 @@ void Client::move(
     send(ProtobufAdapter::makeMove(direction, roundId, requestId));
 }
 
+void Client::placeBomb(std::uint64_t roundId, std::uint64_t requestId)
+{
+    send(ProtobufAdapter::makePlaceBomb(roundId, requestId));
+}
+
 void Client::requestGameStart()
 {
     send(ProtobufAdapter::makeGameStart());
@@ -165,6 +170,7 @@ void Client::send(const Envelope& message)
         case Envelope::kJoinLobbyRequest:
         case Envelope::kUpdateReadyState:
         case Envelope::kMoveRequest:
+        case Envelope::kPlaceBombRequest:
         case Envelope::kGameStartRequest:
         case Envelope::kClientMatchReady:
             break;

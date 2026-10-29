@@ -34,6 +34,7 @@ public:
 
     void setReady(bool ready);
     void move(Direction direction);
+    void placeBomb();
     void requestGameStart();
 
     State getState() const;
@@ -44,6 +45,7 @@ private:
     using Clock = std::chrono::steady_clock;
 
     void fail(std::string message);
+    std::optional<std::uint64_t> takeGameplayRequestId();
 
     Client client;
     Game game;
