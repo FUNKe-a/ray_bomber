@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"maps"
 	"net"
 
@@ -156,28 +157,69 @@ func (mh *matchHandler) handlePlaceBombRequest(
 }
 
 func (mh *matchHandler) handleTick() error {
-	if mh.Match == nil ||
-		lobby.Phase != gamelogic.PhasePlaying {
+	if mh.Match == nil || lobby.Phase != gamelogic.PhasePlaying {
 		return nil
 	}
 
 	mh.Match.AdvanceTick()
+	step := mh.Match.ResolveRoundStep()
 
-	snapshot := mh.Match.TakeWorldSnapshot()
-	if snapshot == nil {
-		return nil
+	if step.Result != nil {
+		lobby.Phase = gamelogic.PhaseFinished
 	}
 
-	envelope := &protocol.Envelope{
-		Payload: &protocol.Envelope_WorldSnapshot{
-			WorldSnapshot: snapshot,
-		},
+	var sendErrors []error
+
+	// Publish the final board before eliminations and results.
+	if snapshot := mh.Match.TakeWorldSnapshot(); snapshot != nil {
+		envelope := &protocol.Envelope{
+			Payload: &protocol.Envelope_WorldSnapshot{
+				WorldSnapshot: snapshot,
+			},
+		}
+
+		sendErrors = append(
+			sendErrors,
+			netio.BroadcastMessage(
+				maps.Keys(mh.Match.Players),
+				envelope,
+			),
+		)
 	}
 
-	return netio.BroadcastMessage(
-		maps.Keys(mh.Match.Players),
-		envelope,
-	)
+	for _, elimination := range step.Eliminations {
+		envelope := &protocol.Envelope{
+			Payload: &protocol.Envelope_PlayerEliminated{
+				PlayerEliminated: elimination,
+			},
+		}
+
+		sendErrors = append(
+			sendErrors,
+			netio.BroadcastMessage(
+				maps.Keys(mh.Match.Players),
+				envelope,
+			),
+		)
+	}
+
+	if step.Result != nil {
+		envelope := &protocol.Envelope{
+			Payload: &protocol.Envelope_MatchEnded{
+				MatchEnded: step.Result,
+			},
+		}
+
+		sendErrors = append(
+			sendErrors,
+			netio.BroadcastMessage(
+				maps.Keys(mh.Match.Players),
+				envelope,
+			),
+		)
+	}
+
+	return errors.Join(sendErrors...)
 }
 
 func (mh *matchHandler) handleClientMatchReady(conn net.Conn, msg *protocol.ClientMatchReady) error {
@@ -232,7 +274,7 @@ func (mh *matchHandler) sendMatchSetup() error {
 	return netio.BroadcastMessage(maps.Keys(mh.Match.Players), envelope)
 }
 
-func (mh *matchHandler) cancelPreparation(
+func (mh *matchHandler) resetToLobby(
 	reason protocol.LobbyResetReason,
 ) error {
 	if mh.Match == nil {
@@ -241,6 +283,7 @@ func (mh *matchHandler) cancelPreparation(
 
 	roundID := mh.Match.GetId()
 
+	// Discard bombs, blasts, positions, results, and round readiness.
 	mh.Match = nil
 	lobby.Phase = gamelogic.PhaseLobby
 
@@ -248,7 +291,7 @@ func (mh *matchHandler) cancelPreparation(
 		member.IsReady = false
 	}
 
-	envelope := &protocol.Envelope{
+	reset := &protocol.Envelope{
 		Payload: &protocol.Envelope_LobbyReset{
 			LobbyReset: &protocol.LobbyReset{
 				RoundId: roundID,
@@ -257,8 +300,87 @@ func (mh *matchHandler) cancelPreparation(
 		},
 	}
 
-	return netio.BroadcastMessage(
+	resetErr := netio.BroadcastMessage(
 		maps.Keys(lobby.Members),
-		envelope,
+		reset,
+	)
+
+	var leaderErr error
+
+	if lobby.LeaderId() != 0 {
+		leader := &protocol.Envelope{
+			Payload: &protocol.Envelope_PlayerEvent{
+				PlayerEvent: &protocol.PlayerEvent{
+					Id: lobby.LeaderId(),
+					EventType: &protocol.PlayerEvent_SetLeader{
+						SetLeader: &protocol.PlayerSetLeader{},
+					},
+				},
+			},
+		}
+
+		leaderErr = netio.BroadcastMessage(
+			maps.Keys(lobby.Members),
+			leader,
+		)
+	}
+
+	return errors.Join(resetErr, leaderErr)
+}
+
+func (mh *matchHandler) cancelPreparation(
+	reason protocol.LobbyResetReason,
+) error {
+	return mh.resetToLobby(reason)
+}
+
+func (mh *matchHandler) handleReturnToLobbyRequest(
+	conn net.Conn,
+	request *protocol.ReturnToLobbyRequest,
+) error {
+	if request == nil {
+		return nil
+	}
+
+	if mh.Match == nil ||
+		lobby.Phase != gamelogic.PhaseFinished ||
+		!mh.Match.IsFinished() {
+		return rejectAction(
+			conn, request.GetRoundId(), request.GetRequestId(),
+			protocol.RejectionReason_REJECTION_WRONG_PHASE,
+		)
+	}
+
+	reason := mh.Match.ValidateReturnRequest(
+		conn,
+		request.GetRoundId(),
+		request.GetRequestId(),
+	)
+
+	if reason != protocol.RejectionReason_REJECTION_UNSPECIFIED {
+		return rejectAction(
+			conn, request.GetRoundId(), request.GetRequestId(),
+			reason,
+		)
+	}
+
+	member, exists := lobby.Members[conn]
+
+	if !exists {
+		return rejectAction(
+			conn, request.GetRoundId(), request.GetRequestId(),
+			protocol.RejectionReason_REJECTION_INVALID_REQUEST,
+		)
+	}
+
+	if member.GetId() != lobby.LeaderId() {
+		return rejectAction(
+			conn, request.GetRoundId(), request.GetRequestId(),
+			protocol.RejectionReason_REJECTION_NOT_LEADER,
+		)
+	}
+
+	return mh.resetToLobby(
+		protocol.LobbyResetReason_RESET_ROUND_FINISHED,
 	)
 }

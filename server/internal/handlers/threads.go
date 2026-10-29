@@ -49,6 +49,10 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 				slog.Warn("Simulation tick failed", "err", err)
 			}
 
+			if lobby.Phase != gamelogic.PhasePlaying {
+				stopTicks()
+			}
+
 		case <-preparationTimeout:
 			stopPreparationTimer()
 
@@ -76,7 +80,7 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 						matchH.Match.PlayerExists(wrapper.Conn)
 
 				if matchH.Match != nil {
-					delete(matchH.Match.Players, wrapper.Conn)
+					matchH.Match.RemovePlayer(wrapper.Conn)
 				}
 
 				err = handlePlayerDisconnect(wrapper.Conn)
@@ -149,6 +153,16 @@ func TCPHandleMessages(messages <-chan netio.MsgWrapper) {
 						)
 
 						ticks = ticker.C
+					}
+				case *protocol.Envelope_ReturnToLobbyRequest:
+					err = matchH.handleReturnToLobbyRequest(
+						wrapper.Conn,
+						msg.ReturnToLobbyRequest,
+					)
+
+					if lobby.Phase == gamelogic.PhaseLobby {
+						stopTicks()
+						stopPreparationTimer()
 					}
 				}
 			}
