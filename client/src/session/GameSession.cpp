@@ -162,7 +162,13 @@ void GameSession::update()
         }
 
         // Gameplay updates must not alter a round before StartMatch.
-        if (std::holds_alternative<PlayerMoved>(event) && state != State::Playing)
+        const bool isGameplayEvent =
+            std::holds_alternative<PlayerMoved>(event) ||
+            std::holds_alternative<WorldSnapshotReceived>(event) ||
+            std::holds_alternative<PlayerEliminatedReceived>(event) ||
+            std::holds_alternative<ActionRejectedReceived>(event);
+
+        if (isGameplayEvent && state != State::Playing)
             continue;
 
         game.handleEvent(event);
