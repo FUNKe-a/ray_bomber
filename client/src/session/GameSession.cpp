@@ -273,3 +273,8 @@ std::optional<std::uint64_t> GameSession::takeGameplayRequestId()
 
     return nextRequestId++;
 }
+
+Game::PresentationSubscription GameSession::observe(Game::PresentationCallback callback)
+{
+    return game.observe(std::move(callback));
+}

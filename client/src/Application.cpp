@@ -22,7 +22,7 @@ Application::~Application() = default;
 
 int Application::run()
 {
-    SetTraceLogLevel(LOG_WARNING);
+    SetTraceLogLevel(LOG_DEBUG);
     InitWindow(ScreenWidth, ScreenHeight, "Ray Bomber");
     SetTargetFPS(TargetFramesPerSecond);
 

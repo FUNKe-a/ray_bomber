@@ -3,6 +3,9 @@
 #include "Map.hpp"
 #include "Player.hpp"
 #include "GameEvent.hpp"
+#include "EventSignal.hpp"
+#include "GameNotification.hpp"
+
 #include <cstdint>
 #include <string>
 #include <unordered_map>
@@ -27,6 +30,10 @@ public:
     bool hasJoinedLobby() const;
     std::optional<std::uint32_t> getLeaderId() const;
     bool isLocalPlayerLeader() const;
+    
+    using PresentationCallback = EventSignal<GameNotification>::Callback;
+    using PresentationSubscription = EventSignal<GameNotification>::Subscription;
+    PresentationSubscription observe(PresentationCallback callback);
 
 private:
     Player& ensurePlayer(std::uint32_t id);
@@ -57,4 +64,5 @@ private:
     std::optional<std::uint64_t> lastBoardTick;
     std::unordered_map<std::uint32_t, std::uint64_t> lastMovementTicks;
     std::optional<ActionRejectedReceived> lastActionRejection;
+    EventSignal<GameNotification> presentationEvents;
 };

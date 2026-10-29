@@ -26,5 +26,5 @@ private:
 
     ConnectionSettings& settings;
 
-    InputField activeField = InputField::ServerAddress;
+    InputField activeField = InputField::PlayerName;
 };

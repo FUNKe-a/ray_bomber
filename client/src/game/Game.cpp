@@ -233,6 +233,10 @@ void Game::apply(const WorldSnapshotReceived& event)
 
     lastBoardTick = event.serverTick;
     serverTick = std::max(serverTick, event.serverTick);
+
+    presentationEvents.notify(GameNotification{
+        WorldSnapshotApplied{event.roundId, event.serverTick}
+    });
 }
 
 void Game::apply(const PlayerEliminatedReceived& event)
@@ -248,6 +252,10 @@ void Game::apply(const PlayerEliminatedReceived& event)
     it->second.eliminate();
 
     serverTick = std::max(serverTick, event.serverTick);
+
+    presentationEvents.notify(GameNotification{
+        PlayerEliminationApplied{event.roundId, event.serverTick, event.playerId, event.reason}
+    });
 }
 
 void Game::apply(const ActionRejectedReceived& event)
@@ -256,6 +264,10 @@ void Game::apply(const ActionRejectedReceived& event)
         return;
 
     lastActionRejection = event;
+
+    presentationEvents.notify(GameNotification{
+        GameplayActionRejected{event.roundId, event.requestId, event.reason}
+    });
 }
 
 std::uint64_t Game::getRoundId() const 
@@ -324,4 +336,9 @@ std::optional<std::uint64_t> Game::getLastBoardTick() const
 const std::optional<ActionRejectedReceived>& Game::getLastActionRejection() const
 {
     return lastActionRejection;
+}
+
+Game::PresentationSubscription Game::observe(PresentationCallback callback)
+{
+    return presentationEvents.subscribe(std::move(callback));
 }
