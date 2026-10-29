@@ -87,6 +87,19 @@ std::optional<SceneTransition> PlayingScene::update()
         };
     }
 
+
+    if (state == GameSession::State::Finished)
+    {
+        return SceneTransition{SceneType::Results, {}};
+    }
+
+    if (state == GameSession::State::Joined ||
+        state == GameSession::State::PreparingMatch ||
+        state == GameSession::State::WaitingForMatchStart)
+    {
+        return SceneTransition{SceneType::Lobby, {}};
+    }
+
     if (state != GameSession::State::Playing)
     {
         return std::nullopt;

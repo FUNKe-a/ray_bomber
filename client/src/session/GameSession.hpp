@@ -20,6 +20,7 @@ public:
         PreparingMatch,
         WaitingForMatchStart,
         Playing,
+        Finished,
         Failed
     };
 
@@ -43,6 +44,12 @@ public:
 
     Game::PresentationSubscription observe(Game::PresentationCallback callback);
 
+    const std::optional<RoundResult>& getRoundResult() const;
+    const std::string& getNotice() const;
+
+    bool isWaitingForLobbyReset() const;
+    void requestReturnToLobby();
+
 private:
     using Clock = std::chrono::steady_clock;
 
@@ -63,4 +70,17 @@ private:
 
     Clock::time_point connectStartedAt{};
     Clock::time_point joinStartedAt{};
+
+    std::optional<RoundResult> roundResult;
+    std::optional<std::uint64_t> pendingReturnRequest;
+
+    std::string noticeMessage;
+
+    Clock::time_point preparationStartedAt{};
+    Clock::time_point matchWaitStartedAt{};
+    Clock::time_point returnRequestedAt{};
+
+    static constexpr std::chrono::seconds PreparationTimeout{20};
+    static constexpr std::chrono::seconds MatchStartTimeout{20};
+    static constexpr std::chrono::seconds LobbyResetTimeout{10};
 };

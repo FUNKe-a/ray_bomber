@@ -8,7 +8,8 @@ enum class SceneType
     Settings,
     Connecting,
     Lobby,
-    Playing
+    Playing,
+    Results
 };
 
 struct SceneTransition

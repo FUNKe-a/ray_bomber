@@ -162,6 +162,11 @@ void Client::matchReady(std::uint64_t roundId)
     send(ProtobufAdapter::makeMatchReady(roundId));
 }
 
+void Client::returnToLobby(std::uint64_t roundId, std::uint64_t requestId)
+{
+    send(ProtobufAdapter::makeReturnToLobby(roundId, requestId));
+}
+
 void Client::send(const Envelope& message)
 {
     if (!isConnected() || !session) return;
@@ -173,6 +178,7 @@ void Client::send(const Envelope& message)
         case Envelope::kPlaceBombRequest:
         case Envelope::kGameStartRequest:
         case Envelope::kClientMatchReady:
+        case Envelope::kReturnToLobbyRequest:
             break;
         default:
             fail(session, "Cannot send a server payload as a request.");
