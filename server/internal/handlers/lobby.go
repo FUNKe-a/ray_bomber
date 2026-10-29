@@ -135,6 +135,10 @@ func handleGameStartRequest(
 		return nil, nil
 	}
 
+	if len(lobby.Members) < 2 {
+		return nil, nil
+	}
+
 	for _, participant := range lobby.Members {
 		if !participant.GetIsReady() {
 			return nil, nil

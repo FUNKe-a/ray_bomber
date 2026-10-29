@@ -29,7 +29,7 @@ func (m *Match) PlaceBomb(
 			protocol.RejectionReason_REJECTION_INVALID_REQUEST
 	}
 
-	if player.Eliminated {
+	if player.Eliminated || player.pendingElimination {
 		return 0,
 			protocol.RejectionReason_REJECTION_PLAYER_ELIMINATED
 	}

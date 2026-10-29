@@ -14,6 +14,7 @@ const (
 	PhaseLobby MatchPhase = iota
 	PhasePreparing
 	PhasePlaying
+	PhaseFinished
 )
 const (
 	tilePrefix uint32 = 19
@@ -145,6 +146,10 @@ func (lob *lobby) StartMatch() *Match {
 
 	match := NewMatch(maps.Keys(lob.Members))
 	match.id = lob.matchCounter
+
+	for conn, member := range lob.Members {
+		match.Players[conn].ID = member.GetId()
+	}
 
 	return match
 }

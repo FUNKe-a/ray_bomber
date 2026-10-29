@@ -10,11 +10,13 @@ import (
 )
 
 type MatchPlayer struct {
+	ID       uint32
 	spawn    *protocol.Cell
 	position Position
 
-	MatchReady bool
-	Eliminated bool
+	MatchReady         bool
+	Eliminated         bool
+	pendingElimination bool
 
 	activeBombs   uint32
 	lastRequestID uint64
@@ -33,8 +35,9 @@ type Match struct {
 	Players map[net.Conn]*MatchPlayer
 
 	// This board contains only floor, walls, and crates.
-	board *protocol.Board
-	rules *protocol.RoundRules
+	board  *protocol.Board
+	rules  *protocol.RoundRules
+	result *protocol.MatchEnded
 
 	started    bool
 	serverTick uint64
@@ -44,8 +47,9 @@ type Match struct {
 	blasts     map[Position]uint64
 	nextBombID uint64
 
-	explosionStrategy ExplosionStrategy
-	lastSnapshot      []protocol.Terrain
+	explosionStrategy  ExplosionStrategy
+	lastSnapshot       []protocol.Terrain
+	pendingDisconnects []*protocol.PlayerEliminated
 }
 
 func (m *Match) GetId() uint64 {
@@ -271,6 +275,10 @@ func (m *Match) MovePlayer(
 	}
 
 	player.position = position
+	if m.IsBlastActive(position) {
+		player.pendingElimination = true
+	}
+
 	player.nextMoveTick =
 		m.serverTick + uint64(m.rules.GetMovementIntervalTicks())
 
@@ -305,7 +313,7 @@ func (m *Match) ValidateAction(
 	// A rejected gameplay attempt also consumes its request ID.
 	player.lastRequestID = requestID
 
-	if player.Eliminated {
+	if player.Eliminated || player.pendingElimination {
 		return protocol.RejectionReason_REJECTION_PLAYER_ELIMINATED
 	}
 
