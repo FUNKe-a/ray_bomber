@@ -2,39 +2,85 @@
 
 #include "GameSession.hpp"
 #include "GameTypes.hpp"
-
 #include "UI.hpp"
 
 #include <raylib.h>
 
 #include <algorithm>
-#include <cstdint>
+#include <string>
 #include <utility>
 #include <vector>
 
 namespace
 {
+    constexpr Color Background{20, 20, 20, 255};
+    constexpr Color Panel{29, 29, 29, 255};
+    constexpr Color Surface{42, 42, 42, 255};
+    constexpr Color LocalSurface{53, 53, 53, 255};
+    constexpr Color Text{240, 240, 240, 255};
+    constexpr Color Muted{165, 165, 165, 255};
+    constexpr Color Accent{210, 210, 210, 255};
+
+    constexpr Color ReadyColor{112, 218, 160, 255};
+    constexpr Color Warning{239, 168, 107, 255};
+
+    Rectangle rosterRectangle()
+    {
+        return {
+            32.0f,
+            126.0f,
+            static_cast<float>(GetScreenWidth()) - 392.0f,
+            static_cast<float>(GetScreenHeight()) - 158.0f
+        };
+    }
+
+    Rectangle actionsRectangle()
+    {
+        return {
+            static_cast<float>(GetScreenWidth()) - 336.0f,
+            126.0f,
+            304.0f,
+            static_cast<float>(GetScreenHeight()) - 158.0f
+        };
+    }
+
+    Rectangle readyButtonRectangle()
+    {
+        const auto panel = actionsRectangle();
+
+        return {
+            panel.x + 20.0f,
+            panel.y + 112.0f,
+            panel.width - 40.0f,
+            48.0f
+        };
+    }
+
     Rectangle startButtonRectangle()
     {
+        const auto panel = actionsRectangle();
+
         return {
-            GetScreenWidth() / 2.0f - 110.0f,
-            GetScreenHeight() - 130.0f,
-            220.0f,
-            44.0f
+            panel.x + 20.0f,
+            panel.y + 284.0f,
+            panel.width - 40.0f,
+            48.0f
         };
     }
 
-    Rectangle disconnectButton()
+    Rectangle disconnectButtonRectangle()
     {
+        const auto panel = actionsRectangle();
+
         return {
-            static_cast<float>(GetScreenWidth()) / 2.0f - 110.0f,
-            static_cast<float>(GetScreenHeight()) - 70.0f,
-            220.0f,
+            panel.x + 20.0f,
+            panel.y + panel.height - 64.0f,
+            panel.width - 40.0f,
             44.0f
         };
     }
 
-    Color toRaylibColor(PlayerColor color)
+    Color playerColor(PlayerColor color)
     {
         switch (color)
         {
@@ -49,19 +95,53 @@ namespace
         return GRAY;
     }
 
-    const UI::Theme DisconnectTheme = []
+    UI::Theme buttonTheme(bool primary)
     {
         UI::Theme theme;
-        theme.button = MAROON;
-        theme.buttonHovered = RED;
+
+        theme.button = primary
+            ? Color{72, 72, 72, 255}
+            : Surface;
+
+        theme.buttonHovered = primary
+            ? Color{90, 90, 90, 255}
+            : Color{56, 56, 56, 255};
+
+        theme.buttonText = Text;
+        theme.disabled = Color{35, 35, 35, 255};
+        theme.fontSize = 16;
+
         return theme;
-    }();
+    }
+
+    bool everyoneReady(const Game& game)
+    {
+        if (game.getPlayers().size() < 2)
+            return false;
+
+        return std::all_of(
+            game.getPlayers().begin(),
+            game.getPlayers().end(),
+            [](const auto& entry)
+            {
+                return entry.second.isReady();
+            }
+        );
+    }
+
+    bool canStartMatch(const GameSession& session)
+    {
+        return
+            session.getState() == GameSession::State::Joined &&
+            session.getGame().isLocalPlayerLeader() &&
+            everyoneReady(session.getGame());
+    }
 }
 
-LobbyScene::LobbyScene(GameSession& session): session(session)
+LobbyScene::LobbyScene(GameSession& session)
+    : session(session)
 {
 }
-
 
 std::optional<SceneTransition> LobbyScene::update()
 {
@@ -69,22 +149,21 @@ std::optional<SceneTransition> LobbyScene::update()
 
     if (state == GameSession::State::Failed)
     {
-        // Copy the error before disconnect() clears it.
         std::string error = session.getError();
         session.disconnect();
 
-        return SceneTransition{SceneType::Menu, std::move(error)};
+        return SceneTransition{
+            SceneType::Menu,
+            std::move(error)
+        };
     }
 
     if (state == GameSession::State::Disconnected)
     {
-        return SceneTransition{SceneType::Menu, "Disconnected from server."};
-    }
-
-    if (UI::isClicked(disconnectButton()) || IsKeyPressed(KEY_ESCAPE))
-    {
-        session.disconnect();
-        return SceneTransition{SceneType::Menu, {}};
+        return SceneTransition{
+            SceneType::Menu,
+            "Disconnected from server."
+        };
     }
 
     if (state == GameSession::State::Playing)
@@ -92,25 +171,38 @@ std::optional<SceneTransition> LobbyScene::update()
         return SceneTransition{SceneType::Playing, {}};
     }
 
-    if (state == GameSession::State::Joined)
-    {
-        const Game& game = session.getGame();
-        const Player* localPlayer = game.getLocalPlayer();
-
-        if (localPlayer && IsKeyPressed(KEY_R))
-        {
-            session.setReady(!localPlayer->isReady());
-        }
-
-        if (game.isLocalPlayerLeader() && UI::isClicked(startButtonRectangle()))
-        {
-            session.requestGameStart();
-        }
-    }
-
     if (state == GameSession::State::Finished)
     {
         return SceneTransition{SceneType::Results, {}};
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE) ||
+        UI::isClicked(disconnectButtonRectangle()))
+    {
+        session.disconnect();
+        return SceneTransition{SceneType::Menu, {}};
+    }
+
+    if (state != GameSession::State::Joined)
+        return std::nullopt;
+
+    const auto* localPlayer = session.getGame().getLocalPlayer();
+
+    if (localPlayer &&
+        (IsKeyPressed(KEY_R) ||
+         UI::isClicked(readyButtonRectangle())))
+    {
+        session.setReady(!localPlayer->isReady());
+
+        // Avoid sending Ready and Start in the same frame.
+        return std::nullopt;
+    }
+
+    if (canStartMatch(session) &&
+        (IsKeyPressed(KEY_ENTER) ||
+         UI::isClicked(startButtonRectangle())))
+    {
+        session.requestGameStart();
     }
 
     return std::nullopt;
@@ -118,182 +210,322 @@ std::optional<SceneTransition> LobbyScene::update()
 
 void LobbyScene::render() const
 {
-    const Game& game = session.getGame();
+    const auto& game = session.getGame();
+    const auto state = session.getState();
+    const auto* localPlayer = game.getLocalPlayer();
 
-    const char* title = "LOBBY";
+    const bool joined = state == GameSession::State::Joined;
+    const bool localReady = localPlayer && localPlayer->isReady();
+    const bool leader = game.isLocalPlayerLeader();
 
-    DrawText(
-        title,
-        (GetScreenWidth() - MeasureText(title, 30)) / 2,
-        35,
-        30,
-        DARKGRAY
+    DrawRectangle(
+        0,
+        0,
+        GetScreenWidth(),
+        GetScreenHeight(),
+        Background
     );
 
-    const char* hint = "Press R to toggle ready";
+    UI::drawText("MULTIPLAYER", 32.0f, 24.0f, 14.0f, Muted);
+    UI::drawText("Lobby", 32.0f, 48.0f, 34.0f, Text);
 
-    DrawText(
-        hint,
-        (GetScreenWidth() - MeasureText(hint, 20)) / 2,
-        85,
-        20,
-        GRAY
+    UI::drawText(
+        "Ready up. The leader starts the round.",
+        32.0f,
+        91.0f,
+        16.0f,
+        Muted
     );
 
-    const int left = 40;
-    const int width = GetScreenWidth() - 2 * left;
-    const int statusX = left + width - 160;
+    const Rectangle roster = rosterRectangle();
+    const Rectangle actions = actionsRectangle();
 
-    DrawText("COLOR", left + 12, 130, 20, GRAY);
-    DrawText("PLAYER", left + 90, 130, 20, GRAY);
-    DrawText("STATUS", statusX, 130, 20, GRAY);
+    DrawRectangleRounded(roster, 0.025f, 8, Panel);
+    DrawRectangleRounded(actions, 0.04f, 8, Panel);
 
-    // unordered_map does not provide a stable display order.
-    std::vector<std::uint32_t> ids;
-    ids.reserve(game.getPlayers().size());
+    // Stable roster order.
+    std::vector<const Player*> players;
+    players.reserve(game.getPlayers().size());
+
+    int readyCount = 0;
 
     for (const auto& entry : game.getPlayers())
     {
-        ids.push_back(entry.first);
+        players.push_back(&entry.second);
+
+        if (entry.second.isReady())
+            ++readyCount;
     }
 
-    std::sort(ids.begin(), ids.end());
+    std::sort(
+        players.begin(),
+        players.end(),
+        [](const Player* first, const Player* second)
+        {
+            return first->getId() < second->getId();
+        }
+    );
 
-    int y = 160;
+    UI::drawText(
+        "PLAYERS",
+        roster.x + 20.0f,
+        roster.y + 22.0f,
+        15.0f,
+        Muted
+    );
 
-    for (const auto id : ids)
+    const std::string countLabel =
+        std::to_string(readyCount) + " / " +
+        std::to_string(players.size()) + " ready";
+
+    UI::drawText(
+        countLabel,
+        roster.x + roster.width - 20.0f -
+            UI::measureText(countLabel, 15.0f),
+        roster.y + 22.0f,
+        15.0f,
+        Text
+    );
+
+    float y = roster.y + 62.0f;
+
+    for (const Player* player : players)
     {
-        const Player* player = game.getPlayer(id);
+        const bool isLocal =
+            player->getId() == game.getLocalPlayerId();
 
-        const bool isLocalPlayer =
-            game.hasJoinedLobby() &&
-            id == game.getLocalPlayerId();
+        const bool isLeader =
+            game.getLeaderId() &&
+            *game.getLeaderId() == player->getId();
 
         const Rectangle row{
-            static_cast<float>(left),
-            static_cast<float>(y),
-            static_cast<float>(width),
-            48.0f
+            roster.x + 20.0f,
+            y,
+            roster.width - 40.0f,
+            68.0f
         };
 
-        DrawRectangleRec(row, LIGHTGRAY);
+        DrawRectangleRounded(
+            row,
+            0.12f,
+            8,
+            isLocal ? LocalSurface : Surface
+        );
 
-        if (isLocalPlayer)
-        {
-            DrawRectangleLinesEx(row, 2.0f, DARKBLUE);
-        }
-
-        // Show the assigned color independently of ready status.
-        UI::drawColorSwatch(
-            {
-                static_cast<float>(left + 20),
-                static_cast<float>(y + 12),
-                24.0f,
-                24.0f
+        DrawRectangleRounded(
+            Rectangle{
+                row.x + 14.0f,
+                row.y + 18.0f,
+                32.0f,
+                32.0f
             },
-            toRaylibColor(player->getColor())
+            0.15f,
+            6,
+            playerColor(player->getColor())
         );
 
         std::string name = player->getName().empty()
-            ? "Player " + std::to_string(id)
+            ? "Player " + std::to_string(player->getId())
             : player->getName();
 
-        std::string suffix = isLocalPlayer ? " (you)" : "";
+        if (isLocal)
+            name += " (you)";
 
-        if (game.getLeaderId() == std::optional<std::uint32_t>{id})
-        {
-            suffix += " [Leader]";
-        }
-
-        // Keep long names from overlapping the status column.
-        const int nameWidth = statusX - (left + 90) - 16;
-
-        if (MeasureText((name + suffix).c_str(), 20) > nameWidth)
-        {
-            while (!name.empty() &&
-                   MeasureText(
-                       (name + "..." + suffix).c_str(), 20
-                   ) > nameWidth)
-            {
-                name.pop_back();
-            }
-
-            name += "...";
-        }
-
-        const std::string label = name + suffix;
-
-        DrawText(
-            label.c_str(),
-            left + 90,
-            y + 14,
-            20,
-            DARKGRAY
+        UI::drawFittedText(
+            Rectangle{
+                row.x + 60.0f,
+                row.y + 10.0f,
+                row.width - 200.0f,
+                25.0f
+            },
+            name,
+            19.0f,
+            Text
         );
 
-        DrawText(
-            player->isReady() ? "READY" : "NOT READY",
-            statusX,
-            y + 14,
-            20,
-            player->isReady() ? DARKGREEN : DARKGRAY
+        UI::drawText(
+            isLeader ? "Lobby leader" : "Player",
+            row.x + 60.0f,
+            row.y + 40.0f,
+            13.0f,
+            isLeader ? Accent : Muted
         );
 
-        y += 58;
-    }
+        const Rectangle badge{
+            row.x + row.width - 124.0f,
+            row.y + 19.0f,
+            110.0f,
+            30.0f
+        };
 
-    if (ids.empty())
-    {
-        DrawText("Waiting for players...", left + 12, y, 20, GRAY);
-    }
+        DrawRectangleRounded(
+            badge,
+            0.2f,
+            6,
+            player->isReady()
+                ? Color{32, 57, 48, 255}
+                : Color{51, 51, 51, 255}
+        );
 
-    const auto state = session.getState();
-
-    if (state == GameSession::State::Joined)
-    {
-        if (game.isLocalPlayerLeader())
-        {
-            UI::drawButton(startButtonRectangle(), "START GAME");
-        }
-        else
-        {
-            UI::drawCenteredText(
-                startButtonRectangle(),
-                "Waiting for leader",
-                20,
-                GRAY
-            );
-        }
-    }
-
-    if (state == GameSession::State::PreparingMatch ||
-        state == GameSession::State::WaitingForMatchStart)
-    {
         UI::drawCenteredText(
-            startButtonRectangle(),
-            state == GameSession::State::PreparingMatch
-                ? "Preparing match..."
-                : "Waiting for players...",
-            20,
-            GRAY
+            badge,
+            player->isReady() ? "READY" : "NOT READY",
+            13,
+            player->isReady() ? ReadyColor : Muted
+        );
+
+        y += 80.0f;
+    }
+
+    if (players.empty())
+    {
+        UI::drawText(
+            "Waiting for players...",
+            roster.x + 20.0f,
+            y,
+            17.0f,
+            Muted
         );
     }
-    
-    UI::drawButton(
-        disconnectButton(),
-        "Disconnect",
-        true,
-        DisconnectTheme
+
+    // Reserve the roster footer for reset/error notices.
+    const std::string footer = session.getNotice().empty()
+        ? "Your player color is also used in the arena."
+        : session.getNotice();
+
+    UI::drawFittedText(
+        Rectangle{
+            roster.x + 20.0f,
+            roster.y + roster.height - 48.0f,
+            roster.width - 40.0f,
+            28.0f
+        },
+        footer,
+        14.0f,
+        session.getNotice().empty() ? Muted : Warning
     );
 
-    if (!session.getNotice().empty())
+    // Local readiness.
+    const float left = actions.x + 20.0f;
+
+    UI::drawText(
+        "YOUR STATUS",
+        left,
+        actions.y + 22.0f,
+        14.0f,
+        Muted
+    );
+
+    UI::drawText(
+        localReady ? "Ready to play" : "Not ready yet",
+        left,
+        actions.y + 50.0f,
+        23.0f,
+        localReady ? ReadyColor : Text
+    );
+
+    UI::drawText(
+        "Press R or use the button below.",
+        left,
+        actions.y + 83.0f,
+        14.0f,
+        Muted
+    );
+
+    UI::drawButton(
+        readyButtonRectangle(),
+        localReady ? "CANCEL READY  [R]" : "READY UP  [R]",
+        joined && localPlayer != nullptr,
+        buttonTheme(!localReady)
+    );
+
+    DrawRectangleRec(
+        Rectangle{
+            left,
+            actions.y + 182.0f,
+            actions.width - 40.0f,
+            1.0f
+        },
+        Surface
+    );
+
+    // Match preparation and start requirements.
+    const char* phaseTitle;
+    const char* phaseHint;
+
+    if (state == GameSession::State::PreparingMatch)
     {
-        DrawText(
-            session.getNotice().c_str(),
-            20,
-            GetScreenHeight() - 180,
-            20,
-            MAROON
-        );
+        phaseTitle = "Preparing arena";
+        phaseHint = "Receiving the server's round setup.";
     }
+    else if (state == GameSession::State::WaitingForMatchStart)
+    {
+        phaseTitle = "Starting soon";
+        phaseHint = "Waiting for everyone to finish loading.";
+    }
+    else if (!joined)
+    {
+        phaseTitle = "Connecting";
+        phaseHint = "Waiting for the lobby.";
+    }
+    else if (players.size() < 2)
+    {
+        phaseTitle = "Waiting for players";
+        phaseHint = "At least two players are needed.";
+    }
+    else if (!everyoneReady(game))
+    {
+        phaseTitle = "Waiting for readiness";
+        phaseHint = "Everyone must be ready to start.";
+    }
+    else
+    {
+        phaseTitle = "Everyone is ready";
+        phaseHint = leader
+            ? "Start the round when you are ready."
+            : "The leader can now start the round.";
+    }
+
+    UI::drawFittedText(
+        Rectangle{
+            left,
+            actions.y + 202.0f,
+            actions.width - 40.0f,
+            30.0f
+        },
+        phaseTitle,
+        21.0f,
+        Text
+    );
+
+    UI::drawFittedText(
+        Rectangle{
+            left,
+            actions.y + 241.0f,
+            actions.width - 40.0f,
+            22.0f
+        },
+        phaseHint,
+        14.0f,
+        Muted
+    );
+
+    const char* startLabel =
+        !joined ? "PREPARING..." :
+        leader ? "START ROUND  [Enter]" :
+                 "LEADER STARTS THE ROUND";
+
+    UI::drawButton(
+        startButtonRectangle(),
+        startLabel,
+        canStartMatch(session),
+        buttonTheme(true)
+    );
+
+    UI::drawButton(
+        disconnectButtonRectangle(),
+        "DISCONNECT  [Esc]",
+        true,
+        buttonTheme(false)
+    );
 }

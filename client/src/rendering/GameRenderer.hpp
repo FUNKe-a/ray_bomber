@@ -1,5 +1,7 @@
 #pragma once
 
+struct Rectangle;
+
 class Game;
 class Map;
 class Player;
@@ -7,7 +9,7 @@ class Player;
 class GameRenderer
 {
 public:
-    void render(const Game& game) const;
+    void render(const Game& game, Rectangle viewport) const;
 
 private:
     static constexpr int TileSize = 48;

@@ -12,59 +12,75 @@
 
 namespace
 {
-    Rectangle fieldRectangle(float y)
+    Rectangle settingsRectangle()
     {
         return {
-            48.0f,
-            y,
-            static_cast<float>(GetScreenWidth()) - 96.0f,
-            50.0f
+            (GetScreenWidth() - 640.0f) / 2.0f,
+            (GetScreenHeight() - 552.0f) / 2.0f,
+            640.0f,
+            552.0f
         };
     }
 
-    Rectangle addressRectangle()
+    Rectangle fieldRectangle(float offset)
     {
-        return fieldRectangle(155.0f);
-    }
+        const auto panel = settingsRectangle();
 
-    Rectangle portRectangle()
-    {
-        return fieldRectangle(245.0f);
+        return {
+            panel.x + 32.0f,
+            panel.y + offset,
+            panel.width - 64.0f,
+            48.0f
+        };
     }
 
     Rectangle nameRectangle()
     {
-        return fieldRectangle(335.0f);
+        return fieldRectangle(154.0f);
     }
 
-    Rectangle backButtonRectangle()
+    Rectangle addressRectangle()
     {
-        return {
-            GetScreenWidth() / 2.0f - 120.0f,
-            430.0f,
-            240.0f,
-            55.0f
-        };
+        return fieldRectangle(244.0f);
+    }
+
+    Rectangle portRectangle()
+    {
+        return fieldRectangle(334.0f);
     }
 
     Rectangle undoButtonRectangle()
     {
+        const auto panel = settingsRectangle();
+
         return {
-            GetScreenWidth() / 2.0f - 120.0f,
-            500.0f,
-            240.0f,
-            45.0f
+            panel.x + 32.0f,
+            panel.y + 424.0f,
+            220.0f,
+            48.0f
+        };
+    }
+
+    Rectangle backButtonRectangle()
+    {
+        const auto panel = settingsRectangle();
+
+        return {
+            panel.x + 268.0f,
+            panel.y + 424.0f,
+            panel.width - 300.0f,
+            48.0f
         };
     }
 
     void drawFieldLabel(Rectangle bounds, const char* text)
     {
-        DrawText(
+        UI::drawText(
             text,
-            static_cast<int>(bounds.x),
-            static_cast<int>(bounds.y) - 28,
-            20,
-            GRAY
+            bounds.x,
+            bounds.y - 26.0f,
+            14.0f,
+            Color{165, 165, 165, 255}
         );
     }
 
@@ -203,44 +219,112 @@ void SettingsScene::undoLastEdit()
 
 void SettingsScene::render() const
 {
+    const Color background{20, 20, 20, 255};
+    const Color panelColor{29, 29, 29, 255};
+    const Color text{240, 240, 240, 255};
+    const Color muted{165, 165, 165, 255};
+
+    DrawRectangle(
+        0, 0,
+        GetScreenWidth(), GetScreenHeight(),
+        background
+    );
+
+    const auto panel = settingsRectangle();
+
+    DrawRectangleRounded(
+        Rectangle{
+            panel.x + 5.0f,
+            panel.y + 7.0f,
+            panel.width,
+            panel.height
+        },
+        0.04f,
+        12,
+        Color{0, 0, 0, 65}
+    );
+
+    DrawRectangleRounded(panel, 0.04f, 12, panelColor);
+
+    UI::drawText(
+        "CONNECTION",
+        panel.x + 32.0f,
+        panel.y + 24.0f,
+        14.0f,
+        muted
+    );
+
+    UI::drawText(
+        "Settings",
+        panel.x + 32.0f,
+        panel.y + 48.0f,
+        32.0f,
+        text
+    );
+
+    UI::drawText(
+        "Choose your name and the server to connect to.",
+        panel.x + 32.0f,
+        panel.y + 91.0f,
+        16.0f,
+        muted
+    );
+
+    const auto theme = UI::darkTheme();
+
+    const auto name = nameRectangle();
+    drawFieldLabel(name, "PLAYER NAME");
+
+    UI::drawTextField(
+        name,
+        settings.playerName,
+        activeField == InputField::PlayerName,
+        theme
+    );
+
+    const auto address = addressRectangle();
+    drawFieldLabel(address, "SERVER ADDRESS");
+
+    UI::drawTextField(
+        address,
+        settings.serverAddress,
+        activeField == InputField::ServerAddress,
+        theme
+    );
+
+    const auto port = portRectangle();
+    drawFieldLabel(port, "PORT");
+
+    UI::drawTextField(
+        port,
+        settings.port,
+        activeField == InputField::Port,
+        theme
+    );
+
+    UI::drawButton(
+        undoButtonRectangle(),
+        "UNDO  [Ctrl+Z]",
+        commandHistory.canUndo(),
+        UI::amberButtonTheme()
+    );
+
+    UI::drawButton(
+        backButtonRectangle(),
+        "BACK TO MENU  [Esc]",
+        true,
+        UI::greenButtonTheme()
+    );
+
     UI::drawCenteredText(
         Rectangle{
-            0.0f,
-            55.0f,
-            static_cast<float>(GetScreenWidth()),
-            40.0f
+            panel.x + 32.0f,
+            panel.y + 492.0f,
+            panel.width - 64.0f,
+            24.0f
         },
-        "SETTINGS",
-        40,
-        DARKGRAY
+        "Edits apply immediately. Undo is available until you leave.",
+        14,
+        muted
     );
-
-    const Rectangle addressRect = addressRectangle();
-    const Rectangle portRect = portRectangle();
-    const Rectangle nameRect = nameRectangle();
-
-    drawFieldLabel(addressRect, "Server Address");
-    UI::drawTextField(
-        addressRect,
-        settings.serverAddress,
-        activeField == InputField::ServerAddress
-    );
-
-    drawFieldLabel(portRect, "Port");
-    UI::drawTextField(
-        portRect,
-        settings.port,
-        activeField == InputField::Port
-    );
-
-    drawFieldLabel(nameRect, "Player Name");
-    UI::drawTextField(
-        nameRect,
-        settings.playerName,
-        activeField == InputField::PlayerName
-    );
-
-    UI::drawButton(backButtonRectangle(), "BACK");
-
-    UI::drawButton(undoButtonRectangle(), "UNDO (Ctrl+Z)", commandHistory.canUndo());
 }

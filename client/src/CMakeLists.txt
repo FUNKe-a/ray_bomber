@@ -61,4 +61,10 @@ target_link_libraries(ray_bomber
     ui
 )
 
-
+add_custom_command(
+  TARGET ray_bomber POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets"
+    "$<TARGET_FILE_DIR:ray_bomber>/assets"
+  COMMENT "Copying game assets"
+)
