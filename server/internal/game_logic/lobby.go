@@ -144,7 +144,9 @@ func (lob *lobby) updateLeader() {
 func (lob *lobby) StartMatch() *Match {
 	lob.matchCounter++
 
-	match := NewMatch(maps.Keys(lob.Members))
+	gameMap := NewMapDirector(NewMapBuilder(MapName)).Construct()
+
+	match := NewMatch(maps.Keys(lob.Members), gameMap)
 	match.id = lob.matchCounter
 
 	for conn, member := range lob.Members {

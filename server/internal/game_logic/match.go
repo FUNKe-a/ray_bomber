@@ -122,20 +122,15 @@ func (m *Match) AllPlayersReady() bool {
 	return true
 }
 
-func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
-	spawnPoints := []*protocol.Cell{
-		{X: 1, Y: 1},
-		{X: 13, Y: 1},
-		{X: 1, Y: 11},
-		{X: 13, Y: 11},
-	}
+func NewMatch(lobbyMembers iter.Seq[net.Conn], gameMap *GameMap) *Match {
+	spawnPoints := gameMap.Spawns
 	rand.Shuffle(len(spawnPoints), func(i, j int) {
 		spawnPoints[i], spawnPoints[j] = spawnPoints[j], spawnPoints[i]
 	})
 
 	matchInstance := &Match{
 		Players: make(map[net.Conn]*MatchPlayer),
-		board:   &protocol.Board{},
+		board:   gameMap.Board,
 
 		rules: &protocol.RoundRules{
 			TickRateHz:            20,
@@ -171,51 +166,6 @@ func NewMatch(lobbyMembers iter.Seq[net.Conn]) *Match {
 		}
 
 		i++
-	}
-
-	matchInstance.board.Height = 13
-	matchInstance.board.Width = 15
-	matchInstance.board.Cells = []protocol.Terrain{
-		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-		2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-		2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-		2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-		2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-		2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2,
-		2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
-		2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-	}
-
-	crateCells := []protocol.Cell{
-		{X: 3, Y: 3},
-		{X: 7, Y: 3},
-		{X: 11, Y: 3},
-		{X: 3, Y: 5},
-		{X: 7, Y: 5},
-		{X: 11, Y: 5},
-		{X: 3, Y: 7},
-		{X: 7, Y: 7},
-		{X: 11, Y: 7},
-		{X: 3, Y: 9},
-		{X: 7, Y: 9},
-		{X: 11, Y: 9},
-	}
-
-	for _, cell := range crateCells {
-		index := int(cell.GetY())*
-			int(matchInstance.board.GetWidth()) +
-			int(cell.GetX())
-
-		if matchInstance.board.Cells[index] ==
-			protocol.Terrain_TERRAIN_FLOOR {
-			matchInstance.board.Cells[index] =
-				protocol.Terrain_TERRAIN_CRATE
-		}
 	}
 
 	matchInstance.lastSnapshot = append(
