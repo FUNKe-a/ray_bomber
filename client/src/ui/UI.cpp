@@ -2,20 +2,67 @@
 
 #include <algorithm>
 #include <string>
+#include <array>
+#include <cmath>
 
 namespace
 {
-    Font interfaceFont{};
-    bool ownsFont = false;
+    constexpr std::array<int, 6> FontSizes{
+        14, 16, 18, 24, 32, 40
+    };
 
-    Font currentFont()
+    std::array<Font, FontSizes.size()> fonts{};
+    bool fontsLoaded = false;
+
+    constexpr float TextSpacing = 0.0f;
+
+    std::size_t fontIndex(float requestedSize)
     {
-        return ownsFont ? interfaceFont : GetFontDefault();
+        std::size_t best = 0;
+
+        for (std::size_t index = 1; index < FontSizes.size(); ++index)
+        {
+            if (std::abs(FontSizes[index] - requestedSize) <
+                std::abs(FontSizes[best] - requestedSize))
+            {
+                best = index;
+            }
+        }
+
+        return best;
     }
 
-    constexpr float TextSpacing = 1.0f;
-}
+    float drawingSize(float requestedSize)
+    {
+        return static_cast<float>(
+            FontSizes[fontIndex(requestedSize)]
+        );
+    }
 
+    Font fontForSize(float requestedSize)
+    {
+        return fontsLoaded
+            ? fonts[fontIndex(requestedSize)]
+            : GetFontDefault();
+    }
+
+    // Remove a complete UTF-8 codepoint, rather than one byte.
+    void removeLastCodepoint(std::string& text)
+    {
+        if (text.empty())
+            return;
+
+        std::size_t start = text.size() - 1;
+
+        while (start > 0 &&
+               (static_cast<unsigned char>(text[start]) & 0xC0) == 0x80)
+        {
+            --start;
+        }
+
+        text.resize(start);
+    }
+}
 
 namespace UI
 {
@@ -38,7 +85,10 @@ namespace UI
         Color color
     )
     {
-        const float size = static_cast<float>(fontSize);
+        const float size = drawingSize(
+            static_cast<float>(fontSize)
+        );
+
         const float width = measureText(text, size);
 
         drawText(
@@ -101,11 +151,15 @@ namespace UI
             static_cast<int>(bounds.height - 2 * theme.borderWidth)
         );
 
+        const float size = drawingSize(
+            static_cast<float>(theme.fontSize)
+        );
+
         drawText(
             value,
             bounds.x + theme.padding,
-            bounds.y + (bounds.height - theme.fontSize) / 2.0f,
-            static_cast<float>(theme.fontSize),
+            bounds.y + (bounds.height - size) / 2.0f,
+            size,
             theme.text
         );
 
@@ -125,35 +179,48 @@ namespace UI
         if (!FileExists(path))
             return false;
 
-        Font loaded = LoadFontEx(path, 48, nullptr, 0);
-
-        // raylib can return its default font when loading fails.
-        if (loaded.texture.id == 0 ||
-            loaded.texture.id == GetFontDefault().texture.id)
+        for (std::size_t index = 0; index < FontSizes.size(); ++index)
         {
-            return false;
+            Font loaded = LoadFontEx(
+                path,
+                FontSizes[index],
+                nullptr,
+                0
+            );
+
+            if (loaded.texture.id == 0 ||
+                loaded.texture.id == GetFontDefault().texture.id)
+            {
+                // Also releases any sizes loaded before this failure.
+                unloadFont();
+                return false;
+            }
+
+            fonts[index] = loaded;
+
+            // Glyphs are drawn at their generated size.
+            SetTextureFilter(
+                fonts[index].texture,
+                TEXTURE_FILTER_POINT
+            );
         }
 
-        interfaceFont = loaded;
-        ownsFont = true;
-
-        SetTextureFilter(
-            interfaceFont.texture,
-            TEXTURE_FILTER_BILINEAR
-        );
-
+        fontsLoaded = true;
         return true;
     }
 
     void unloadFont()
     {
-        if (ownsFont)
+        for (Font& font : fonts)
         {
-            UnloadFont(interfaceFont);
+            if (font.texture.id != 0)
+            {
+                UnloadFont(font);
+                font = {};
+            }
         }
 
-        interfaceFont = {};
-        ownsFont = false;
+        fontsLoaded = false;
     }
 
     void drawText(
@@ -167,10 +234,10 @@ namespace UI
         const std::string value{text};
 
         DrawTextEx(
-            currentFont(),
+            fontForSize(fontSize),
             value.c_str(),
-            Vector2{x, y},
-            fontSize,
+            Vector2{std::round(x), std::round(y)},
+            drawingSize(fontSize),
             TextSpacing,
             color
         );
@@ -181,9 +248,9 @@ namespace UI
         const std::string value{text};
 
         return MeasureTextEx(
-            currentFont(),
+            fontForSize(fontSize),
             value.c_str(),
-            fontSize,
+            drawingSize(fontSize),
             TextSpacing
         ).x;
     }
@@ -195,19 +262,49 @@ namespace UI
         Color color
     )
     {
-        const float width = measureText(text, fontSize);
-
-        if (width > bounds.width && width > 0.0f)
-        {
-            fontSize *= bounds.width / width;
-        }
+        const float size = drawingSize(fontSize);
+        const std::string fitted = fitText(
+            text,
+            bounds.width,
+            size
+        );
 
         drawText(
-            text,
+            fitted,
             bounds.x,
-            bounds.y + (bounds.height - fontSize) / 2.0f,
-            fontSize,
+            bounds.y + (bounds.height - size) / 2.0f,
+            size,
             color
         );
+    }
+
+    std::string fitText(
+        std::string_view text,
+        float maxWidth,
+        float fontSize
+    )
+    {
+        if (maxWidth <= 0.0f)
+            return {};
+
+        std::string value{text};
+
+        if (measureText(value, fontSize) <= maxWidth)
+            return value;
+
+        const std::string suffix = "...";
+
+        if (measureText(suffix, fontSize) > maxWidth)
+            return {};
+
+        while (!value.empty())
+        {
+            removeLastCodepoint(value);
+
+            if (measureText(value + suffix, fontSize) <= maxWidth)
+                return value + suffix;
+        }
+
+        return suffix;
     }
 }

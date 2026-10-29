@@ -2,6 +2,7 @@
 
 #include <raylib.h>
 #include <string_view>
+#include <string>
 
 namespace UI
 {
@@ -70,6 +71,12 @@ namespace UI
         std::string_view text,
         float fontSize,
         Color color
+    );
+
+    std::string fitText(
+        std::string_view text,
+        float maxWidth,
+        float fontSize
     );
 
     inline Theme darkTheme()

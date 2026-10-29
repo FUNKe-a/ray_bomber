@@ -265,23 +265,21 @@ void ResultsScene::render() const
         draw ? "Nobody survived this round" : result->winnerName;
 
     // Fit long names while keeping the text centered.
-    float outcomeSize = 25.0f;
-    const float availableWidth = outcomeBox.width - 32.0f;
-    const float measuredWidth =
-        UI::measureText(outcomeText, outcomeSize);
-
-    if (measuredWidth > availableWidth)
-    {
-        outcomeSize *= availableWidth / measuredWidth;
-    }
-
-    UI::drawText(
+    const std::string fittedOutcome = UI::fitText(
         outcomeText,
-        outcomeBox.x +
-            (outcomeBox.width -
-             UI::measureText(outcomeText, outcomeSize)) / 2.0f,
-        outcomeBox.y + 40.0f,
-        outcomeSize,
+        outcomeBox.width - 32.0f,
+        24.0f
+    );
+
+    UI::drawCenteredText(
+        Rectangle{
+            outcomeBox.x + 16.0f,
+            outcomeBox.y + 36.0f,
+            outcomeBox.width - 32.0f,
+            36.0f
+        },
+        fittedOutcome,
+        24,
         draw ? Text : Victory
     );
 
