@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Scene.hpp"
+#include "SettingsCommand.hpp"
 
 #include <memory>
 
@@ -23,8 +24,9 @@ private:
     };
 
     void handleTextInput();
+    void undoLastEdit();
 
     ConnectionSettings& settings;
-
     InputField activeField = InputField::PlayerName;
+    SettingsCommandHistory commandHistory;
 };

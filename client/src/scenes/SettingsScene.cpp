@@ -7,6 +7,8 @@
 #include <raylib.h>
 
 #include <string>
+#include <memory>
+#include <utility>
 
 namespace
 {
@@ -45,6 +47,16 @@ namespace
         };
     }
 
+    Rectangle undoButtonRectangle()
+    {
+        return {
+            GetScreenWidth() / 2.0f - 120.0f,
+            500.0f,
+            240.0f,
+            45.0f
+        };
+    }
+
     void drawFieldLabel(Rectangle bounds, const char* text)
     {
         DrawText(
@@ -55,6 +67,13 @@ namespace
             GRAY
         );
     }
+
+    void discardTextInput()
+    {
+        while (GetCharPressed() > 0)
+        {
+        }
+    }
 }
 
 SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
@@ -63,9 +82,28 @@ SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
 
 std::optional<SceneTransition> SettingsScene::update()
 {
-    if (UI::isClicked(backButtonRectangle()) || IsKeyPressed(KEY_ESCAPE))
+    if (UI::isClicked(backButtonRectangle()) ||
+        IsKeyPressed(KEY_ESCAPE))
     {
         return SceneTransition{SceneType::Menu, {}};
+    }
+
+    const bool controlDown =
+        IsKeyDown(KEY_LEFT_CONTROL) ||
+        IsKeyDown(KEY_RIGHT_CONTROL);
+
+    const bool undoShortcut =
+        controlDown && IsKeyPressed(KEY_Z);
+
+    if (undoShortcut ||
+        UI::isClicked(
+            undoButtonRectangle(),
+            commandHistory.canUndo()
+        ))
+    {
+        discardTextInput();
+        undoLastEdit();
+        return std::nullopt;
     }
 
     if (UI::isClicked(addressRectangle()))
@@ -81,18 +119,26 @@ std::optional<SceneTransition> SettingsScene::update()
         activeField = InputField::PlayerName;
     }
 
+    if (controlDown)
+    {
+        discardTextInput();
+        return std::nullopt;
+    }
+
     handleTextInput();
     return std::nullopt;
 }
 
 void SettingsScene::handleTextInput()
 {
-    std::string& value =
+    std::string& target =
         activeField == InputField::ServerAddress
             ? settings.serverAddress
             : activeField == InputField::Port
                 ? settings.port
                 : settings.playerName;
+
+    std::string editedValue = target;
 
     int character = GetCharPressed();
 
@@ -126,18 +172,33 @@ void SettingsScene::handleTextInput()
                 break;
         }
 
-        if (allowed && value.size() < maxLength)
-        {
-            value += static_cast<char>(character);
-        }
+        if (allowed && editedValue.size() < maxLength)
+            editedValue += static_cast<char>(character);
 
         character = GetCharPressed();
     }
 
-    if (IsKeyPressed(KEY_BACKSPACE) && !value.empty())
-    {
-        value.pop_back();
-    }
+    if (IsKeyPressed(KEY_BACKSPACE) && !editedValue.empty())
+        editedValue.pop_back();
+
+    // Ignore rejected input and edits that leave the value unchanged.
+    if (editedValue == target)
+        return;
+
+    commandHistory.execute(
+        std::make_unique<ChangeTextCommand>(
+            target,
+            std::move(editedValue)
+        )
+    );
+
+    TraceLog(LOG_INFO, "SETTINGS COMMAND: change text");
+}
+
+void SettingsScene::undoLastEdit()
+{
+    if (commandHistory.undo())
+        TraceLog(LOG_INFO, "SETTINGS COMMAND: undo");
 }
 
 void SettingsScene::render() const
@@ -180,4 +241,6 @@ void SettingsScene::render() const
     );
 
     UI::drawButton(backButtonRectangle(), "BACK");
+
+    UI::drawButton(undoButtonRectangle(), "UNDO (Ctrl+Z)", commandHistory.canUndo());
 }
