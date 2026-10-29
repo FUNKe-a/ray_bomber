@@ -38,6 +38,9 @@ private:
     void apply(const MatchPreparationStarted& event);
     void apply(const MatchSetupReceived& event);
     void apply(const MatchStarted& event);
+    void apply(const WorldSnapshotReceived& event);
+    void apply(const PlayerEliminatedReceived& event);
+    void apply(const ActionRejectedReceived& event);
 
     Map map;
     std::uint64_t roundId = 0;

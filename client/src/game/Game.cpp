@@ -195,6 +195,18 @@ void Game::apply(const MatchStarted& event)
         serverTick = event.serverTick;
 }
 
+void Game::apply(const WorldSnapshotReceived&)
+{
+}
+
+void Game::apply(const PlayerEliminatedReceived&)
+{
+}
+
+void Game::apply(const ActionRejectedReceived&)
+{
+}
+
 std::uint64_t Game::getRoundId() const 
 { 
     return roundId; 
