@@ -7,6 +7,8 @@
 
 #include <raylib.h>
 
+#include <algorithm>
+
 namespace
 {
     Color toRaylibColor(PlayerColor color, bool isLocalPlayer)
@@ -26,10 +28,51 @@ namespace
     }
 }
 
-void GameRenderer::render(const Game& game) const
+void GameRenderer::render(
+    const Game& game,
+    Rectangle viewport
+) const
 {
-    drawMap(game.getMap());
+    const auto& map = game.getMap();
+
+    if (map.getWidth() <= 0 || map.getHeight() <= 0 ||
+        viewport.width <= 0 || viewport.height <= 0)
+        return;
+
+    const float worldWidth = static_cast<float>(map.getWidth()) * TileSize;
+    const float worldHeight = static_cast<float>(map.getHeight()) * TileSize;
+
+    Camera2D camera{};
+
+    camera.target = {
+        worldWidth / 2.0f,
+        worldHeight / 2.0f
+    };
+
+    camera.offset = {
+        viewport.x + viewport.width / 2.0f,
+        viewport.y + viewport.height / 2.0f
+    };
+
+    camera.zoom = std::min(
+        viewport.width / worldWidth,
+        viewport.height / worldHeight
+    );
+
+    BeginScissorMode(
+        static_cast<int>(viewport.x),
+        static_cast<int>(viewport.y),
+        static_cast<int>(viewport.width),
+        static_cast<int>(viewport.height)
+    );
+
+    BeginMode2D(camera);
+
+    drawMap(map);
     drawPlayers(game);
+
+    EndMode2D();
+    EndScissorMode();
 }
 
 void GameRenderer::drawMap(const Map& map) const

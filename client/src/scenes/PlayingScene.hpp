@@ -20,6 +20,7 @@ public:
 
 private:
     void onGameNotification(const GameNotification& notification);
+    void renderHud(Rectangle bounds) const;
 
     GameSession& session;
     GameplayInput input;
