@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 
+	gamelogic "github.com/FUNKe-a/ray_bomber/server/internal/game_logic"
 	"github.com/FUNKe-a/ray_bomber/server/internal/handlers"
 	netio "github.com/FUNKe-a/ray_bomber/server/internal/net_io"
 )
@@ -14,6 +15,11 @@ import (
 
 func main() {
 	setupLogLevel()
+
+	if name := os.Getenv("RAY_BOMBER_MAP"); name != "" {
+		gamelogic.MapName = name
+	}
+	slog.Info("Map layout", "name", gamelogic.MapName)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:6769")
 	if err != nil {
