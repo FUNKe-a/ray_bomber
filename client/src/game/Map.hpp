@@ -1,24 +1,34 @@
 #pragma once
 
-#include <array>
+#include "GameTypes.hpp"
+
+#include <cstdint>
+#include <vector>
+#include <optional>
 
 class Map
 {
 public:
-    static constexpr int Width = 15;
-    static constexpr int Height = 13;
+    // Until MatchSetup arrives, there is no arena.
+    Map() = default;
+    
+    static std::optional<Map> fromBoard(const BoardData& board);
 
-    enum class Tile
-    {
-        Empty,
-        Wall
-    };
+    int getWidth() const;
+    int getHeight() const;
 
-    Map();
-
+    bool contains(int x, int y) const;
     bool isWalkable(int x, int y) const;
+    
     Tile getTile(int x, int y) const;
+    const std::vector<Tile>& getCells() const;
+
+    void swap(Map& other) noexcept;
 
 private:
-    std::array<std::array<Tile, Width>, Height> tiles;
+    Map(int width, int height, std::vector<Tile> cells);
+    
+    int width = 0;
+    int height = 0;
+    std::vector<Tile> cells;
 };

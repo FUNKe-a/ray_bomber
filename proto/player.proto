@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package player;
+
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+enum Color {
+  UNKNOWN = 0;
+  RED = 1;
+  GREEN = 2;
+  BLUE = 3;
+  YELLOW = 4;
+}
+
+message PlayerInfo {
+  uint32 id = 1;
+  Color color = 2;
+  string username = 3;
+  bool is_ready = 4;
+}

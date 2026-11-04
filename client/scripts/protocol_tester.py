@@ -32,6 +32,7 @@ def send_message(client: socket.socket, message_type: int, body: bytes):
     print(f"  Length: {len(body)}")
     print(f"  Body:   {body.hex(' ')}")
     print(f"  Packet: {packet.hex(' ')}")
+    print()
 
     client.sendall(packet)
 

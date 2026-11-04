@@ -1,0 +1,153 @@
+syntax = "proto3";
+
+package match;
+
+option go_package =
+  "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+message Cell {
+  int32 x = 1;
+  int32 y = 2;
+}
+
+enum Terrain {
+  TERRAIN_UNSPECIFIED = 0;
+  TERRAIN_FLOOR = 1;
+  TERRAIN_WALL = 2;
+  TERRAIN_CRATE = 3;
+  TERRAIN_BOMB = 4;
+  TERRAIN_EXPLOSION = 5;
+}
+
+message Board {
+  uint32 width = 1;
+  uint32 height = 2;
+
+  repeated Terrain cells = 3;
+}
+
+message RoundRules {
+  uint32 tick_rate_hz = 1;
+  uint32 bomb_capacity = 2;
+  uint32 bomb_fuse_ticks = 3;
+  uint32 blast_duration_ticks = 4;
+  uint32 blast_range = 5;
+  uint32 movement_interval_ticks = 6;
+}
+
+message PlayerSpawnInfo {
+  uint32 player_id = 1;
+  Cell pos = 2;
+}
+
+message MatchSetup {
+  uint64 round_id = 1;
+  RoundRules rules = 2;
+  Board board = 3;
+  repeated PlayerSpawnInfo spawns = 4;
+}
+
+message ClientMatchReady {
+  uint64 round_id = 1;
+}
+
+message StartMatch {
+  uint64 round_id = 1;
+  uint64 server_tick = 2;
+}
+
+message MoveRequest {
+  enum Direction {
+    UNKNOWN = 0;
+    UP = 1;
+    RIGHT = 2;
+    DOWN = 3;
+    LEFT = 4;
+  }
+
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+  Direction direction = 3;
+}
+
+message PlayerMovement {
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+  uint64 server_tick = 3;
+  uint32 id = 4;
+  Cell pos = 5;
+}
+
+message PlaceBombRequest {
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+}
+
+message WorldSnapshot {
+  uint64 round_id = 1;
+  uint64 server_tick = 2;
+  Board board = 3;
+}
+
+enum RejectionReason {
+  REJECTION_UNSPECIFIED = 0;
+  REJECTION_WRONG_PHASE = 1;
+  REJECTION_STALE_ROUND = 2;
+  REJECTION_PLAYER_ELIMINATED = 3;
+  REJECTION_BOMB_CAPACITY_REACHED = 4;
+  REJECTION_TILE_BLOCKED = 5;
+  REJECTION_MOVE_COOLDOWN = 6;
+  REJECTION_NOT_LEADER = 7;
+  REJECTION_INVALID_REQUEST = 8;
+}
+
+message ActionRejected {
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+  RejectionReason reason = 3;
+}
+
+enum EliminationReason {
+  ELIMINATION_UNSPECIFIED = 0;
+  ELIMINATION_BLAST = 1;
+  ELIMINATION_DISCONNECTED = 2;
+}
+
+message PlayerEliminated {
+  uint64 round_id = 1;
+  uint64 server_tick = 2;
+  uint32 player_id = 3;
+  EliminationReason reason = 4;
+}
+
+enum RoundOutcome {
+  OUTCOME_UNSPECIFIED = 0;
+  OUTCOME_WINNER = 1;
+  OUTCOME_DRAW = 2;
+}
+
+message MatchEnded {
+  uint64 round_id = 1;
+  uint64 server_tick = 2;
+  RoundOutcome outcome = 3;
+
+  // Tik kai OUTCOME_WINNER.
+  optional uint32 winner_id = 4;
+}
+
+message ReturnToLobbyRequest {
+  uint64 round_id = 1;
+  uint64 request_id = 2;
+}
+
+enum LobbyResetReason {
+  RESET_UNSPECIFIED = 0;
+  RESET_ROUND_FINISHED = 1;
+  RESET_PREPARATION_DISCONNECT = 2;
+  RESET_PREPARATION_TIMEOUT = 3;
+}
+
+message LobbyReset {
+  uint64 round_id = 1;
+  LobbyResetReason reason = 2;
+}

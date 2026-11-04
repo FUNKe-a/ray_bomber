@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+import "lobby.proto";
+import "match.proto";
+
+option go_package = "github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol;protocol";
+
+message Envelope {
+  oneof payload {
+    // Lobby
+    // Client
+    lobby.GameStartRequest game_start_request = 1;
+    lobby.JoinLobbyRequest join_lobby_request = 2;
+    lobby.UpdateReadyState update_ready_state = 3;
+
+    // Server
+    lobby.JoinLobbyResponse join_lobby_response = 4;
+    lobby.PlayerEvent player_event = 5;
+    lobby.GameStart game_start = 6;
+
+    // Match
+    // Client
+    match.MoveRequest move_request = 7;
+    match.ClientMatchReady client_match_ready = 8;
+
+    // Server
+    match.PlayerMovement player_movement = 9;
+    match.StartMatch start_match = 10;
+    match.MatchSetup match_setup = 11;
+
+    match.PlaceBombRequest place_bomb_request = 12;
+    match.ActionRejected action_rejected = 13;
+    match.MatchEnded match_ended = 14;
+    match.ReturnToLobbyRequest return_to_lobby_request = 15;
+
+    match.LobbyReset lobby_reset = 16;
+    match.WorldSnapshot world_snapshot = 17;
+    match.PlayerEliminated player_eliminated = 18;
+  }
+}

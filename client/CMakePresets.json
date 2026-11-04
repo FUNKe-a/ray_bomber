@@ -1,0 +1,23 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "windows-vcpkg",
+      "displayName": "Windows MSVC + vcpkg",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/vscode",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/dev/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "configurePreset": "windows-vcpkg",
+      "configuration": "Debug"
+    }
+  ]
+}

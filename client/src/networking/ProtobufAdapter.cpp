@@ -1,0 +1,430 @@
+#include "ProtobufAdapter.hpp"
+
+#include <stdexcept>
+#include <utility>
+
+namespace {
+    std::optional<PlayerColor> decodeColor(player::Color color)
+    {
+        switch (color) {
+            case player::UNKNOWN: return PlayerColor::Unknown;
+            case player::RED:     return PlayerColor::Red;
+            case player::GREEN:   return PlayerColor::Green;
+            case player::BLUE:    return PlayerColor::Blue;
+            case player::YELLOW:  return PlayerColor::Yellow;
+            default:             return std::nullopt;
+        }
+    }
+
+    match::MoveRequest::Direction encodeDirection(Direction direction)
+    {
+        switch (direction) {
+            case Direction::Up:    return match::MoveRequest::UP;
+            case Direction::Right: return match::MoveRequest::RIGHT;
+            case Direction::Down:  return match::MoveRequest::DOWN;
+            case Direction::Left:  return match::MoveRequest::LEFT;
+        }
+
+        throw std::invalid_argument("Invalid movement direction.");
+    }
+
+    std::optional<Tile> decodeTile(int value)
+    {
+        switch (value)
+        {
+            case match::TERRAIN_FLOOR:     return Tile::Floor;
+            case match::TERRAIN_WALL:      return Tile::Wall;
+            case match::TERRAIN_CRATE:     return Tile::Crate;
+            case match::TERRAIN_BOMB:      return Tile::Bomb;
+            case match::TERRAIN_EXPLOSION: return Tile::Explosion;
+
+            default:
+                return std::nullopt;
+        }
+    }
+
+    std::optional<EliminationReason> decodeEliminationReason(match::EliminationReason reason)
+    {
+        switch (reason)
+        {
+            case match::ELIMINATION_BLAST:        return EliminationReason::Blast;
+            case match::ELIMINATION_DISCONNECTED: return EliminationReason::Disconnected;
+            default:
+                return std::nullopt;
+        }
+    }
+
+    std::optional<ActionRejectionReason> decodeRejectionReason(
+    match::RejectionReason reason)
+    {
+        switch (reason)
+        {
+            case match::REJECTION_WRONG_PHASE:           return ActionRejectionReason::WrongPhase;
+            case match::REJECTION_STALE_ROUND:           return ActionRejectionReason::StaleRound;
+            case match::REJECTION_PLAYER_ELIMINATED:     return ActionRejectionReason::PlayerEliminated;
+            case match::REJECTION_BOMB_CAPACITY_REACHED: return ActionRejectionReason::BombCapacityReached;
+            case match::REJECTION_TILE_BLOCKED:          return ActionRejectionReason::TileBlocked;
+            case match::REJECTION_MOVE_COOLDOWN:         return ActionRejectionReason::MoveCooldown;
+            case match::REJECTION_NOT_LEADER:            return ActionRejectionReason::NotLeader;
+            case match::REJECTION_INVALID_REQUEST:       return ActionRejectionReason::InvalidRequest;
+            default:
+                return std::nullopt;
+        }
+    }
+
+    std::optional<BoardData> decodeBoard(const match::Board& source)
+    {
+        BoardData board;
+        board.width = source.width();
+        board.height = source.height();
+        board.cells.reserve(source.cells_size());
+
+        for (const auto value : source.cells())
+        {
+            const auto tile = decodeTile(value);
+            if (!tile) return std::nullopt;
+            board.cells.push_back(*tile);
+        }
+
+        return board;
+    }
+}
+
+Envelope ProtobufAdapter::makeJoin(const std::string& name)
+{
+    Envelope message;
+    message.mutable_join_lobby_request()->set_username(name);
+    return message;
+}
+
+Envelope ProtobufAdapter::makeReady(bool ready)
+{
+    Envelope message;
+    message.mutable_update_ready_state()->set_is_ready(ready);
+    return message;
+}
+
+Envelope ProtobufAdapter::makeMove(
+    Direction direction, std::uint64_t roundId, std::uint64_t requestId)
+{
+    Envelope message;
+    message.mutable_move_request()->set_round_id(roundId);
+    message.mutable_move_request()->set_request_id(requestId);
+    message.mutable_move_request()->set_direction(encodeDirection(direction));
+    return message;
+}
+
+Envelope ProtobufAdapter::makePlaceBomb(std::uint64_t roundId,std::uint64_t requestId)
+{
+    Envelope message;
+    message.mutable_place_bomb_request()->set_round_id(roundId);
+    message.mutable_place_bomb_request()->set_request_id(requestId);
+    return message;
+}
+
+Envelope ProtobufAdapter::makeGameStart()
+{
+    Envelope message;
+    message.mutable_game_start_request();
+    return message;
+}
+
+Envelope ProtobufAdapter::makeMatchReady(std::uint64_t roundId)
+{
+    Envelope message;
+    message.mutable_client_match_ready()->set_round_id(roundId);
+    return message;
+}
+
+Envelope ProtobufAdapter::makeReturnToLobby(std::uint64_t roundId, std::uint64_t requestId)
+{
+    Envelope message;
+    message.mutable_return_to_lobby_request()->set_round_id(roundId);
+    message.mutable_return_to_lobby_request()->set_request_id(requestId);
+    return message;
+}
+
+std::optional<GameEvent> ProtobufAdapter::decode(
+    const Envelope& message)
+{
+    switch (message.payload_case()) {
+        case Envelope::kJoinLobbyResponse: 
+        {
+			LobbyJoined setup;
+            const auto& response = message.join_lobby_response();
+            const auto color = decodeColor(response.color());
+
+            if (!color)
+                return std::nullopt;
+
+			setup.id = response.id();
+			setup.color = *color;
+			setup.leader_id = response.leader_id();
+
+			setup.players.reserve(response.players_size());
+			for (const auto& player : response.players()) {
+            	const auto pcolor = decodeColor(player.color());
+
+            	if (!pcolor)
+                	return std::nullopt;
+
+				setup.players.push_back(PlayerInfo{
+					player.id(),
+					*pcolor,
+					player.username(),
+                    player.is_ready()
+				});
+			}
+
+            return GameEvent{
+				setup
+            };
+        }
+
+        case Envelope::kPlayerMovement: 
+        {
+            const auto& movement = message.player_movement();
+
+            return GameEvent{
+                PlayerMoved{
+                    movement.id(),
+                    movement.pos().x(),
+                    movement.pos().y(),
+                    movement.round_id(),
+                    movement.server_tick(),
+                    movement.request_id()
+                }
+            };
+        }
+
+        case Envelope::kPlayerEvent: 
+        {
+            const auto& event = message.player_event();
+
+            switch (event.event_type_case()) {
+                case lobby::PlayerEvent::kJoined: {
+                    const auto& joined = event.joined();
+                    const auto color = decodeColor(joined.color());
+
+                    if (!color)
+                        return std::nullopt;
+
+                    return GameEvent{
+                        PlayerJoined{
+                            event.id(),
+                            joined.username(),
+                            *color
+                        }
+                    };
+                }
+
+                case lobby::PlayerEvent::kSetLeader:
+                    return GameEvent{
+                        LobbyLeaderChanged{event.id()}
+                    };
+
+                case lobby::PlayerEvent::kLeft:
+                    return GameEvent{
+                        PlayerLeft{
+                            event.id(),
+                            event.left().reason()
+                        }
+                    };
+
+                case lobby::PlayerEvent::kReady:
+                    return GameEvent{
+                        PlayerReadyChanged{
+                            event.id(),
+                            event.ready().is_ready()
+                        }
+                    };
+
+                default:
+                    return std::nullopt;
+            }
+        }
+
+        case Envelope::kGameStart:
+        {
+            return GameEvent{
+                MatchPreparationStarted{
+                    message.game_start().round_id()
+                }
+            };
+        }
+
+        case Envelope::kMatchSetup:
+        {
+            const auto& source = message.match_setup();
+
+            if (!source.has_board() || !source.has_rules())
+            {
+                return std::nullopt;
+            }
+
+            const auto& board = source.board();
+            const auto& rules = source.rules();
+
+            MatchSetupReceived setup;
+            setup.roundId = source.round_id();
+
+            setup.board.width = board.width();
+            setup.board.height = board.height();
+            setup.board.cells.reserve(board.cells_size());
+
+            for (const auto value : board.cells())
+            {
+                const auto tile = decodeTile(value);
+
+                if (!tile)
+                {
+                    return std::nullopt;
+                }
+
+                setup.board.cells.push_back(*tile);
+            }
+
+            setup.rules = RoundRules{
+                rules.tick_rate_hz(),
+                rules.bomb_capacity(),
+                rules.bomb_fuse_ticks(),
+                rules.blast_duration_ticks(),
+                rules.blast_range(),
+                rules.movement_interval_ticks()
+            };
+
+            setup.spawns.reserve(source.spawns_size());
+
+            for (const auto& spawn : source.spawns())
+            {
+                setup.spawns.push_back(PlayerSpawn{
+                    spawn.player_id(),
+                    spawn.pos().x(),
+                    spawn.pos().y()
+                });
+            }
+
+            return GameEvent{std::move(setup)};
+        }
+
+        case Envelope::kStartMatch:
+        {
+            return GameEvent{MatchStarted{
+                message.start_match().round_id(),
+                message.start_match().server_tick()
+            }};
+        }
+
+        case Envelope::kWorldSnapshot:
+        {
+            const auto& source = message.world_snapshot();
+
+            if (!source.has_board())
+                return std::nullopt;
+
+            auto board = decodeBoard(source.board());
+
+            if (!board)
+                return std::nullopt;
+
+            return GameEvent{
+                WorldSnapshotReceived{source.round_id(), source.server_tick(), std::move(*board)}
+            };
+        }
+
+        case Envelope::kPlayerEliminated:
+        {
+            const auto& source = message.player_eliminated();
+            const auto reason = decodeEliminationReason(source.reason());
+
+            if (!reason)
+                return std::nullopt;
+
+            return GameEvent{
+                PlayerEliminatedReceived{source.round_id(), source.server_tick(), source.player_id(), *reason}
+            };
+        }
+
+        case Envelope::kActionRejected:
+        {
+            const auto& source = message.action_rejected();
+            const auto reason = decodeRejectionReason(source.reason());
+
+            if (!reason)
+                return std::nullopt;
+
+            return GameEvent{
+                ActionRejectedReceived{source.round_id(), source.request_id(), *reason}
+            };
+        }
+        
+        case Envelope::kMatchEnded:
+        {
+            const auto& source = message.match_ended();
+
+            RoundResult result;
+            result.roundId = source.round_id();
+            result.serverTick = source.server_tick();
+
+            switch (source.outcome())
+            {
+                case match::OUTCOME_WINNER:
+                    if (!source.has_winner_id())
+                    {
+                        return std::nullopt;
+                    }
+
+                    result.outcome = RoundOutcome::Winner;
+                    result.winnerId = source.winner_id();
+                    break;
+
+                case match::OUTCOME_DRAW:
+                    if (source.has_winner_id())
+                    {
+                        return std::nullopt;
+                    }
+
+                    result.outcome = RoundOutcome::Draw;
+                    break;
+
+                default:
+                    return std::nullopt;
+            }
+
+            return GameEvent{
+                MatchEndedReceived{std::move(result)}
+            };
+        }
+
+        case Envelope::kLobbyReset:
+        {
+            const auto& source = message.lobby_reset();
+
+            LobbyResetReceived reset;
+            reset.roundId = source.round_id();
+
+            switch (source.reason())
+            {
+                case match::RESET_ROUND_FINISHED:
+                    reset.reason = LobbyResetReason::RoundFinished;
+                    break;
+
+                case match::RESET_PREPARATION_DISCONNECT:
+                    reset.reason = LobbyResetReason::PreparationDisconnect;
+                    break;
+
+                case match::RESET_PREPARATION_TIMEOUT:
+                    reset.reason = LobbyResetReason::PreparationTimeout;
+                    break;
+
+                default:
+                    return std::nullopt;
+            }
+
+            return GameEvent{reset};
+        }
+        
+        default:
+            return std::nullopt;
+    }
+}

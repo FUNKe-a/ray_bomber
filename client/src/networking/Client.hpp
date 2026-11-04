@@ -1,46 +1,70 @@
 #pragma once
 
-#include <functional>
-#include <string>
-#include <queue>
+#include "Protocol.hpp"
+#include "GameEvent.hpp"
+#include "GameTypes.hpp"
 
 #include <asio.hpp>
 
-#include "Protocol.hpp"
+#include <array>
+#include <cstdint>
+#include <deque>
+#include <memory>
+#include <string>
+#include <vector>
 
 class Client
 {
 public:
-    Client();
+    enum class ConnectionState { Disconnected, Connecting, Connected, Failed };
 
-    bool connect(
-        const std::string& host,
-        unsigned short port
-    );
-
-    void disconnect();
-
-    bool isConnected() const;
-
-    bool send(const Protocol::Message& message);
-
-    void startReceiving();
-
+    Client() = default;
+    ~Client();
+    void connect(const std::string& address, std::uint16_t port);
     void poll();
+    void startReceiving();
+    void disconnect();
+    ConnectionState getConnectionState() const;
+    bool isConnected() const;
+    const std::string& getError() const;
 
-    bool receive(Protocol::Message& message);
+    void joinLobby(const std::string& name);
+    void setReady(bool ready);
+    void move(Direction direction, std::uint64_t roundId, std::uint64_t requestId);
+    void placeBomb(std::uint64_t roundId, std::uint64_t requestId);
+    void requestGameStart();
+    void matchReady(std::uint64_t roundId);
+    void returnToLobby(std::uint64_t roundId, std::uint64_t requestId);
+
+    bool receive(GameEvent& event);
 
 private:
-    void readHeader();
-    void readBody(Protocol::MessageType messageType);
+    void send(const Envelope& message);
+    // Each connection owns its async buffers. Cancelled callbacks retain the
+    // old session, so reconnecting cannot reuse a buffer still owned by Asio.
+    struct Session
+    {
+        explicit Session(asio::io_context& context)
+            : socket(context), resolver(context) {}
+        asio::ip::tcp::socket socket;
+        asio::ip::tcp::resolver resolver;
+        std::array<std::uint8_t, Protocol::HeaderSize> header{};
+        std::vector<std::uint8_t> body;
+        std::deque<std::shared_ptr<std::vector<std::uint8_t>>> outgoing;
+        bool writing = false;
+        bool receiving = false;
+    };
 
-    std::queue<Protocol::Message> receivedMessages;
+    void readHeader(const std::shared_ptr<Session>& current);
+    void readBody(const std::shared_ptr<Session>& current);
+    void writeNext(const std::shared_ptr<Session>& current);
+    void fail(const std::shared_ptr<Session>& current, std::string error);
+    static void close(const std::shared_ptr<Session>& current);
 
     asio::io_context ioContext;
-    asio::ip::tcp::socket socket;
-
-    std::array<std::uint8_t, 3> headerBuffer{};
-    std::vector<std::uint8_t> bodyBuffer;
-
-    bool connected = false;
+    std::shared_ptr<Session> session;
+    std::deque<GameEvent> incomingMessages;
+    ConnectionState connectionState = ConnectionState::Disconnected;
+    std::string errorMessage;
+    static constexpr std::size_t MaxQueuedMessages = 256;
 };

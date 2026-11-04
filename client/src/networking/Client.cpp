@@ -1,240 +1,240 @@
 #include "Client.hpp"
+#include "ProtobufAdapter.hpp"
 
-#include <iostream>
+#include <exception>
 #include <utility>
-#include <memory>
 
-Client::Client()
-    : socket(ioContext)
+Client::~Client()
 {
+    disconnect();
 }
 
-bool Client::connect(
-    const std::string& host,
-    unsigned short port
-)
+void Client::close(const std::shared_ptr<Session>& current)
 {
-    try
-    {
-        asio::ip::tcp::resolver resolver(ioContext);
-
-        const auto endpoints = resolver.resolve(
-            host,
-            std::to_string(port)
-        );
-
-        asio::connect(socket, endpoints);
-
-        connected = true;
-
-        std::cout
-            << "Connected to "
-            << host
-            << ":"
-            << port
-            << '\n';
-
-        return true;
-    }
-    catch (const std::exception& exception)
-    {
-        connected = false;
-
-        std::cerr
-            << "Connection failed: "
-            << exception.what()
-            << '\n';
-
-        return false;
-    }
+    if (!current) return;
+    current->resolver.cancel();
+    asio::error_code ignored;
+    current->socket.shutdown(asio::ip::tcp::socket::shutdown_both, ignored);
+    current->socket.close(ignored);
+    current->outgoing.clear();
 }
 
-void Client::disconnect()
+void Client::connect(const std::string& address, std::uint16_t port)
 {
-    if (!socket.is_open())
-    {
-        connected = false;
+    if (connectionState == ConnectionState::Connecting || isConnected())
         return;
-    }
+    disconnect();
+    errorMessage.clear();
+    connectionState = ConnectionState::Connecting;
+    auto current = std::make_shared<Session>(ioContext);
+    session = current;
 
-    asio::error_code error;
-
-    socket.shutdown(
-        asio::ip::tcp::socket::shutdown_both,
-        error
-    );
-
-    socket.close(error);
-
-    connected = false;
-}
-
-bool Client::isConnected() const
-{
-    return connected;
-}
-
-bool Client::send(const Protocol::Message& message)
-{
-    if (!connected)
-    {
-        return false;
-    }
-
-    try
-    {
-        auto packet =
-            std::make_shared<std::vector<std::uint8_t>>(
-                Protocol::serialize(message)
-            );
-
-        asio::async_write(
-            socket,
-            asio::buffer(*packet),
-            [packet](
-                const asio::error_code& error,
-                std::size_t
-            )
-            {
-                if (error)
+    current->resolver.async_resolve(address, std::to_string(port),
+        [this, current](const asio::error_code& error,
+                       const asio::ip::tcp::resolver::results_type& endpoints)
+        {
+            if (session != current) return;
+            if (error) { fail(current, error.message()); return; }
+            asio::async_connect(current->socket, endpoints,
+                [this, current](const asio::error_code& connectError,
+                                const asio::ip::tcp::endpoint&)
                 {
-                    std::cerr
-                        << "Send failed: "
-                        << error.message()
-                        << '\n';
-                }
-            }
-        );
-
-        return true;
-    }
-    catch (const std::exception& exception)
-    {
-        std::cerr
-            << "Send failed: "
-            << exception.what()
-            << '\n';
-
-        return false;
-    }
-}
-
-void Client::startReceiving()
-{
-    if (!connected)
-    {
-        return;
-    }
-
-    readHeader();
+                    if (session != current) return;
+                    if (connectError) { fail(current, connectError.message()); return; }
+                    connectionState = ConnectionState::Connected;
+                });
+        });
 }
 
 void Client::poll()
 {
+    ioContext.restart();
     ioContext.poll();
 }
 
-void Client::readHeader()
+void Client::startReceiving()
 {
-    asio::async_read(
-        socket,
-        asio::buffer(headerBuffer),
-        [this](
-            const asio::error_code& error,
-            std::size_t
-        )
+    if (!isConnected() || !session || session->receiving) return;
+    session->receiving = true;
+    readHeader(session);
+}
+
+void Client::readHeader(const std::shared_ptr<Session>& current)
+{
+    asio::async_read(current->socket, asio::buffer(current->header),
+        [this, current](const asio::error_code& error, std::size_t count)
         {
+            if (session != current) return;
+            if (error) { fail(current, error.message()); return; }
+            if (count != Protocol::HeaderSize)
+            { fail(current, "Incomplete envelope header."); return; }
+            try
+            {
+                current->body.resize(Protocol::decodeLength(current->header));
+            }
+            catch (const std::exception& exception)
+            { fail(current, exception.what()); return; }
+            readBody(current);
+        });
+}
+
+void Client::readBody(const std::shared_ptr<Session>& current)
+{
+    asio::async_read(current->socket, asio::buffer(current->body),
+        [this, current](const asio::error_code& error, std::size_t count)
+        {
+            if (session != current)
+            {
+                return;
+            } 
+            
             if (error)
             {
-                if (error != asio::error::operation_aborted)
-                {
-                    std::cerr
-                        << "Receive header failed: "
-                        << error.message()
-                        << '\n';
-                }
-
-                connected = false;
+                fail(current, error.message()); 
                 return;
             }
 
-            const auto messageType =
-                static_cast<Protocol::MessageType>(
-                    headerBuffer[0]
-                );
+            Envelope message;
 
-            const std::uint16_t bodyLength =
-                (static_cast<std::uint16_t>(headerBuffer[1]) << 8) |
-                static_cast<std::uint16_t>(headerBuffer[2]);
-
-            bodyBuffer.resize(bodyLength);
-
-            if (bodyLength == 0)
+            if (count != current->body.size() ||
+                !Protocol::deserialize(current->body, message))
             {
-                Protocol::Message message{
-                    messageType,
-                    {}
-                };
-
-                receivedMessages.push(std::move(message));
-
-                readHeader();
+                fail(current, "Invalid server envelope.");
                 return;
             }
 
-            readBody(messageType);
+            auto event = ProtobufAdapter::decode(message);
+
+            if (!event) {
+                fail(current, "Unsupported or invalid server message.");
+                return;
+            }
+
+            if (incomingMessages.size() >= MaxQueuedMessages) {
+                fail(current, "Incoming message queue is full.");
+                return;
+            }
+
+            incomingMessages.push_back(std::move(*event));
+            readHeader(current);
         }
     );
 }
 
-void Client::readBody(Protocol::MessageType messageType)
+bool Client::receive(GameEvent& event)
 {
-    asio::async_read(
-        socket,
-        asio::buffer(bodyBuffer),
-        [this, messageType](
-            const asio::error_code& error,
-            std::size_t
-        )
-        {
-            if (error)
-            {
-                if (error != asio::error::operation_aborted)
-                {
-                    std::cerr
-                        << "Receive body failed: "
-                        << error.message()
-                        << '\n';
-                }
-
-                connected = false;
-                return;
-            }
-
-            Protocol::Message message{
-                messageType,
-                std::move(bodyBuffer)
-            };
-
-            receivedMessages.push(std::move(message));
-
-            bodyBuffer.clear();
-
-            readHeader();
-        }
-    );
-}
-
-bool Client::receive(Protocol::Message& message)
-{
-    if (receivedMessages.empty())
-    {
+    if (incomingMessages.empty())
         return false;
-    }
 
-    message = std::move(receivedMessages.front());
-
-    receivedMessages.pop();
-
+    event = std::move(incomingMessages.front());
+    incomingMessages.pop_front();
     return true;
 }
+
+void Client::joinLobby(const std::string& name)
+{
+    send(ProtobufAdapter::makeJoin(name));
+}
+
+void Client::setReady(bool ready)
+{
+    send(ProtobufAdapter::makeReady(ready));
+}
+
+void Client::move(
+    Direction direction, std::uint64_t roundId, std::uint64_t requestId)
+{
+    send(ProtobufAdapter::makeMove(direction, roundId, requestId));
+}
+
+void Client::placeBomb(std::uint64_t roundId, std::uint64_t requestId)
+{
+    send(ProtobufAdapter::makePlaceBomb(roundId, requestId));
+}
+
+void Client::requestGameStart()
+{
+    send(ProtobufAdapter::makeGameStart());
+}
+
+void Client::matchReady(std::uint64_t roundId)
+{
+    send(ProtobufAdapter::makeMatchReady(roundId));
+}
+
+void Client::returnToLobby(std::uint64_t roundId, std::uint64_t requestId)
+{
+    send(ProtobufAdapter::makeReturnToLobby(roundId, requestId));
+}
+
+void Client::send(const Envelope& message)
+{
+    if (!isConnected() || !session) return;
+    switch (message.payload_case())
+    {
+        case Envelope::kJoinLobbyRequest:
+        case Envelope::kUpdateReadyState:
+        case Envelope::kMoveRequest:
+        case Envelope::kPlaceBombRequest:
+        case Envelope::kGameStartRequest:
+        case Envelope::kClientMatchReady:
+        case Envelope::kReturnToLobbyRequest:
+            break;
+        default:
+            fail(session, "Cannot send a server payload as a request.");
+            return;
+    }
+    auto current = session;
+    if (current->outgoing.size() >= MaxQueuedMessages)
+    { fail(current, "Outgoing message queue is full."); return; }
+    try
+    {
+        current->outgoing.push_back(
+            std::make_shared<std::vector<std::uint8_t>>(Protocol::serialize(message)));
+    }
+    catch (const std::exception& exception)
+    { fail(current, exception.what()); return; }
+    if (!current->writing) writeNext(current);
+}
+
+void Client::writeNext(const std::shared_ptr<Session>& current)
+{
+    if (session != current) return;
+    if (current->outgoing.empty()) { current->writing = false; return; }
+    current->writing = true;
+    // Capture the packet so its bytes survive cancellation/queue clearing.
+    auto packet = current->outgoing.front();
+    asio::async_write(current->socket, asio::buffer(*packet),
+        [this, current, packet](const asio::error_code& error, std::size_t count)
+        {
+            if (session != current) return;
+            if (error) { fail(current, error.message()); return; }
+            if (count != packet->size())
+            { fail(current, "Incomplete envelope write."); return; }
+            current->outgoing.pop_front();
+            writeNext(current);
+        });
+}
+
+void Client::fail(const std::shared_ptr<Session>& current, std::string error)
+{
+    if (session != current) return;
+    // Copy before resetting: the argument can alias the session member.
+    auto failed = current;
+    session.reset();
+    close(failed);
+    errorMessage = std::move(error);
+    connectionState = ConnectionState::Failed;
+}
+
+void Client::disconnect()
+{
+    auto previous = std::move(session);
+    close(previous);
+    incomingMessages.clear();
+    connectionState = ConnectionState::Disconnected;
+}
+
+Client::ConnectionState Client::getConnectionState() const { return connectionState; }
+bool Client::isConnected() const { return connectionState == ConnectionState::Connected; }
+const std::string& Client::getError() const { return errorMessage; }

@@ -2,33 +2,100 @@ package netio
 
 import (
 	"encoding/binary"
-	"github.com/FUNKe-a/ray_bomber/server/internal/protocol"
-	"github.com/FUNKe-a/ray_bomber/server/internal/serdes"
+	"errors"
 	"io"
+	"iter"
 	"net"
+	"time"
+
+	"github.com/FUNKe-a/ray_bomber/server/internal/gen/protocol"
+	"google.golang.org/protobuf/proto"
 )
 
-func ReadAndDeserialize(conn net.Conn) (protocol.Message, error) {
-	if msg_type, msg_body, err := ReadMessage(conn); err == nil {
-		return serdes.Deserialize(msg_type, msg_body)
+func serialize(envelope *protocol.Envelope) ([]byte, error) {
+	bytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return nil, err
 	}
 
-	return protocol.Message{}, nil
+	headBuf := make([]byte, 4)
+	binary.BigEndian.PutUint32(headBuf, uint32(len(bytes)))
+
+	packet := append(headBuf, bytes...)
+	return packet, nil
 }
 
-func ReadMessage(conn net.Conn) (uint8, []byte, error) {
-	headBuffer := make([]byte, 3)
-	if _, err := io.ReadFull(conn, headBuffer); err != nil {
-		return 0, nil, err
+func GetMessage(conn net.Conn, envelope *protocol.Envelope) error {
+	headBuf := make([]byte, 4)
+
+	if _, err := io.ReadFull(conn, headBuf); err != nil {
+		return err
 	}
 
-	msgType := headBuffer[0]
-	msgLength := binary.BigEndian.Uint16(headBuffer[1:3])
+	length := binary.BigEndian.Uint32(headBuf)
 
-	bodyBuffer := make([]byte, msgLength)
-	if _, err := io.ReadFull(conn, bodyBuffer); err != nil {
-		return 0, nil, err
+	dataBuf := make([]byte, length)
+	if _, err := io.ReadFull(conn, dataBuf); err != nil {
+		return err
 	}
 
-	return msgType, bodyBuffer, nil
+	return proto.Unmarshal(dataBuf, envelope)
+}
+
+func SendMessage(conn net.Conn, envelope *protocol.Envelope) error {
+	packet, err := serialize(envelope)
+	if err != nil {
+		return err
+	}
+
+	return writePacket(conn, packet)
+}
+
+func BroadcastMessage(
+	playerConns iter.Seq[net.Conn],
+	envelope *protocol.Envelope,
+) error {
+	packet, err := serialize(envelope)
+	if err != nil {
+		return err
+	}
+
+	var errs []error
+
+	for conn := range playerConns {
+		if err := writePacket(conn, packet); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func writePacket(conn net.Conn, packet []byte) error {
+	if err := conn.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		conn.Close()
+		return err
+	}
+
+	defer func() {
+		_ = conn.SetWriteDeadline(time.Time{})
+	}()
+
+	for len(packet) > 0 {
+		n, err := conn.Write(packet)
+
+		if err != nil {
+			conn.Close()
+			return err
+		}
+
+		if n == 0 {
+			conn.Close()
+			return io.ErrShortWrite
+		}
+
+		packet = packet[n:]
+	}
+
+	return nil
 }

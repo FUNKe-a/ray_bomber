@@ -1,0 +1,32 @@
+#pragma once
+
+#include "Scene.hpp"
+#include "SettingsCommand.hpp"
+
+#include <memory>
+
+struct ConnectionSettings;
+
+class SettingsScene final : public Scene
+{
+public:
+    SettingsScene(ConnectionSettings& settings);
+
+    std::optional<SceneTransition> update() override;
+    void render() const override;
+
+private:
+    enum class InputField
+    {
+        ServerAddress,
+        Port,
+        PlayerName
+    };
+
+    void handleTextInput();
+    void undoLastEdit();
+
+    ConnectionSettings& settings;
+    InputField activeField = InputField::PlayerName;
+    SettingsCommandHistory commandHistory;
+};

@@ -1,0 +1,70 @@
+add_executable(ray_bomber)
+
+if (WIN32)
+  target_compile_definitions(ray_bomber PRIVATE
+    ASIO_STANDALONE
+    _WIN32_WINNT=0x0A00
+    WIN32_LEAN_AND_MEAN
+    NOGDI
+    NOUSER
+  )
+endif()
+
+target_sources(ray_bomber
+  PRIVATE
+    Application.cpp
+    main.cpp
+    application/ConnectionSettings.hpp
+    application/Scene.hpp
+    application/SceneTransition.hpp
+    scenes/ConnectingScene.cpp
+    scenes/ConnectingScene.hpp
+    scenes/MenuScene.cpp
+    scenes/MenuScene.hpp
+    scenes/LobbyScene.cpp
+    scenes/LobbyScene.hpp
+    scenes/SettingsScene.cpp
+    scenes/SettingsScene.hpp
+    scenes/SceneFactory.cpp
+    scenes/SceneFactory.hpp
+    scenes/PlayingScene.cpp
+    scenes/PlayingScene.hpp
+    scenes/ResultsScene.hpp
+    scenes/ResultsScene.cpp 
+    input/GameplayCommand.hpp
+    input/GameplayCommand.cpp
+    input/GameplayInput.hpp
+    input/GameplayInput.cpp
+    input/SettingsCommand.hpp
+)
+
+target_include_directories(ray_bomber
+  PRIVATE
+    application
+    scenes
+    input
+)
+
+add_subdirectory(game)
+add_subdirectory(protocol)
+add_subdirectory(networking)
+add_subdirectory(session)
+add_subdirectory(rendering)
+add_subdirectory(ui)
+
+target_link_libraries(ray_bomber
+  PRIVATE
+    raylib
+    game_logic
+    game_session
+    rendering
+    ui
+)
+
+add_custom_command(
+  TARGET ray_bomber POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_CURRENT_SOURCE_DIR}/../assets"
+    "$<TARGET_FILE_DIR:ray_bomber>/assets"
+  COMMENT "Copying game assets"
+)
