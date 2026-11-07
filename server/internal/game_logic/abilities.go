@@ -40,6 +40,18 @@ type PlayerAbilitiesDecorator struct {
 	abilities PlayerAbilities
 }
 
+func (d *PlayerAbilitiesDecorator) GetBombCapacity() uint32 {
+	return d.abilities.GetBombCapacity()
+}
+
+func (d *PlayerAbilitiesDecorator) GetBlastRange() uint32 {
+	return d.abilities.GetBlastRange()
+}
+
+func (d *PlayerAbilitiesDecorator) GetMovementIntervalTicks() uint32 {
+	return d.abilities.GetMovementIntervalTicks()
+}
+
 type BombCapacityDecorator struct {
 	PlayerAbilitiesDecorator
 	bonus uint32
@@ -61,14 +73,6 @@ func (d *BombCapacityDecorator) GetBombCapacity() uint32 {
 	return d.abilities.GetBombCapacity() + d.bonus
 }
 
-func (d *BombCapacityDecorator) GetBlastRange() uint32 {
-	return d.abilities.GetBlastRange()
-}
-
-func (d *BombCapacityDecorator) GetMovementIntervalTicks() uint32 {
-	return d.abilities.GetMovementIntervalTicks()
-}
-
 type BlastRangeDecorator struct {
 	PlayerAbilitiesDecorator
 	bonus uint32
@@ -86,16 +90,8 @@ func NewBlastRangeDecorator(
 	}
 }
 
-func (d *BlastRangeDecorator) GetBombCapacity() uint32 {
-	return d.abilities.GetBombCapacity()
-}
-
 func (d *BlastRangeDecorator) GetBlastRange() uint32 {
 	return d.abilities.GetBlastRange() + d.bonus
-}
-
-func (d *BlastRangeDecorator) GetMovementIntervalTicks() uint32 {
-	return d.abilities.GetMovementIntervalTicks()
 }
 
 type FasterMovementDecorator struct {
@@ -113,14 +109,6 @@ func NewFasterMovementDecorator(
 		},
 		reduction: reduction,
 	}
-}
-
-func (d *FasterMovementDecorator) GetBombCapacity() uint32 {
-	return d.abilities.GetBombCapacity()
-}
-
-func (d *FasterMovementDecorator) GetBlastRange() uint32 {
-	return d.abilities.GetBlastRange()
 }
 
 func (d *FasterMovementDecorator) GetMovementIntervalTicks() uint32 {
