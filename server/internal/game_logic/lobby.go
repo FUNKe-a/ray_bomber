@@ -153,5 +153,14 @@ func (lob *lobby) StartMatch() *Match {
 		match.Players[conn].ID = member.GetId()
 	}
 
+	// TEMPORARY: Demonstrate three levels of ability decoration.
+	if len(lob.joinOrder) > 0 {
+		demoConn := lob.joinOrder[0]
+
+		if player, exists := match.Players[demoConn]; exists {
+			player.abilities = applyAbilitiesDemo(player.abilities)
+		}
+	}
+
 	return match
 }
