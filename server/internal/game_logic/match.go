@@ -14,6 +14,8 @@ type MatchPlayer struct {
 	spawn    *protocol.Cell
 	position Position
 
+	abilities PlayerAbilities
+
 	MatchReady         bool
 	Eliminated         bool
 	pendingElimination bool
@@ -163,6 +165,11 @@ func NewMatch(lobbyMembers iter.Seq[net.Conn], gameMap *GameMap) *Match {
 				X: spawn.GetX(),
 				Y: spawn.GetY(),
 			},
+			abilities: NewBasePlayerAbilities(
+				matchInstance.rules.GetBombCapacity(),
+				matchInstance.rules.GetBlastRange(),
+				matchInstance.rules.GetMovementIntervalTicks(),
+			),
 		}
 
 		i++
@@ -230,7 +237,7 @@ func (m *Match) MovePlayer(
 	}
 
 	player.nextMoveTick =
-		m.serverTick + uint64(m.rules.GetMovementIntervalTicks())
+		m.serverTick + uint64(player.abilities.GetMovementIntervalTicks())
 
 	return &protocol.Cell{
 		X: position.X,
