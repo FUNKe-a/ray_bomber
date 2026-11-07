@@ -85,17 +85,19 @@ namespace
     class PlayingSceneCreator final : public SceneCreator
     {
     public:
-        explicit PlayingSceneCreator(GameSession& session): session(session)
+        explicit PlayingSceneCreator(GameSession& session, GameFacade& facade)
+            : session(session), facade(facade)
         {
         }
 
         std::unique_ptr<Scene> create(std::string) const override
         {
-            return std::make_unique<PlayingScene>(session);
+            return std::make_unique<PlayingScene>(session, facade);
         }
 
     private:
         GameSession& session;
+        GameFacade& facade;
     };
 
     class ResultsSceneCreator final : public SceneCreator
@@ -118,7 +120,8 @@ namespace
 
 SceneFactory::SceneFactory(
     GameSession& session,
-    ConnectionSettings& settings
+    ConnectionSettings& settings,
+    GameFacade& facade
 )
 {
     creators.emplace(
@@ -138,7 +141,8 @@ SceneFactory::SceneFactory(
     );
 
     creators.emplace(
-        SceneType::Playing, std::make_unique<PlayingSceneCreator>(session)
+        SceneType::Playing,
+        std::make_unique<PlayingSceneCreator>(session, facade)
     );
 
     creators.emplace(

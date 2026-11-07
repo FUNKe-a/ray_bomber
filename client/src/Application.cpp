@@ -15,7 +15,8 @@ namespace
 }
 
 Application::Application()
-    : factory(session, settings)
+    : facade(session),
+      factory(session, settings, facade)
 {
 }
 
@@ -42,7 +43,7 @@ int Application::run()
 
     while (!WindowShouldClose())
     {
-        session.update();
+        facade.update();
 
         if (auto transition = scene->update())
         {

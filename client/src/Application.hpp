@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GameSession.hpp"
+#include "GameFacade.hpp"
 #include "ConnectionSettings.hpp"
 #include "SceneFactory.hpp"
 
@@ -22,6 +23,7 @@ public:
 private:
     ConnectionSettings settings;
     GameSession session;
+    GameFacade facade;
     SceneFactory factory;
     std::unique_ptr<Scene> scene;
 };
