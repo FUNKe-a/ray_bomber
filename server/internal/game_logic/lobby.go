@@ -144,13 +144,22 @@ func (lob *lobby) updateLeader() {
 func (lob *lobby) StartMatch() *Match {
 	lob.matchCounter++
 
-	gameMap := NewMapDirector(NewMapBuilder(MapName)).Construct()
+	gameMap := mapRegistry.Get(MapName)
 
 	match := NewMatch(maps.Keys(lob.Members), gameMap)
 	match.id = lob.matchCounter
 
 	for conn, member := range lob.Members {
 		match.Players[conn].ID = member.GetId()
+	}
+
+	// TEMPORARY: Demonstrate three levels of ability decoration.
+	if len(lob.joinOrder) > 0 {
+		demoConn := lob.joinOrder[0]
+
+		if player, exists := match.Players[demoConn]; exists {
+			player.abilities = applyAbilitiesDemo(player.abilities)
+		}
 	}
 
 	return match
