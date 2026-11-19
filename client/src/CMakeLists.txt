@@ -17,6 +17,8 @@ target_sources(ray_bomber
     application/ConnectionSettings.hpp
     application/Scene.hpp
     application/SceneTransition.hpp
+    application/GameFacade.hpp
+    application/GameFacade.cpp
     scenes/ConnectingScene.cpp
     scenes/ConnectingScene.hpp
     scenes/MenuScene.cpp

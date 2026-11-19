@@ -1,6 +1,7 @@
 #include "PlayingScene.hpp"
 
 #include "GameSession.hpp"
+#include "GameFacade.hpp"
 #include "GameTypes.hpp"
 #include "UI.hpp"
 
@@ -90,8 +91,9 @@ namespace
     }
 }
 
-PlayingScene::PlayingScene(GameSession& session)
+PlayingScene::PlayingScene(GameSession& session, GameFacade& facade)
     : session(session),
+      facade(facade),
       presentationSubscription(
           session.observe(
               [this](const GameNotification& notification) {
@@ -152,7 +154,7 @@ std::optional<SceneTransition> PlayingScene::update()
         return std::nullopt;
     }
 
-    input.handleInput(session);
+    facade.handleGameplayInput();
 
     return std::nullopt;
 }
@@ -163,7 +165,7 @@ void PlayingScene::render() const
 
     DrawRectangleRec(arena, Color{225, 225, 225, 255});
 
-    renderer.render(session.getGame(), arena);
+    facade.renderGame(arena);
     renderHud(hudRectangle());
 }
 

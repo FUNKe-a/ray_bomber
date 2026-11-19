@@ -1,19 +1,19 @@
 #pragma once
 
 #include "Scene.hpp"
-#include "GameRenderer.hpp"
-#include "GameplayInput.hpp"
 #include "Game.hpp"
 
 #include <string>
 #include <optional>
 
 class GameSession;
+class GameFacade;
+struct Rectangle;
 
 class PlayingScene final : public Scene
 {
 public:
-    explicit PlayingScene(GameSession& session);
+    PlayingScene(GameSession& session, GameFacade& facade);
 
     std::optional<SceneTransition> update() override;
     void render() const override;
@@ -23,8 +23,7 @@ private:
     void renderHud(Rectangle bounds) const;
 
     GameSession& session;
-    GameplayInput input;
-    GameRenderer renderer;
+    GameFacade& facade;
 
     std::string actionMessage;
     double actionMessageExpiresAt = 0.0;
