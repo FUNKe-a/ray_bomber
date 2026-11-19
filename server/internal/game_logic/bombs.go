@@ -34,7 +34,7 @@ func (m *Match) PlaceBomb(
 			protocol.RejectionReason_REJECTION_PLAYER_ELIMINATED
 	}
 
-	if player.activeBombs >= player.abilities.GetBombCapacity() {
+	if player.activeBombs >= m.rules.GetBombCapacity() {
 		return 0,
 			protocol.RejectionReason_REJECTION_BOMB_CAPACITY_REACHED
 	}
@@ -72,7 +72,7 @@ func (m *Match) PlaceBomb(
 		ID:            id,
 		OwnerID:       ownerID,
 		Position:      player.position,
-		BlastRange:    player.abilities.GetBlastRange(),
+		BlastRange:    m.rules.GetBlastRange(),
 		ExplodeAtTick: explodeAt,
 		owner:         player,
 		strategy:      m.explosionStrategy,
