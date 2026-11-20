@@ -10,6 +10,7 @@
 #include <memory>
 #include <utility>
 #include <cctype>
+#include <cstddef>
 
 namespace
 {
@@ -113,6 +114,80 @@ namespace
             isWordCharacter(text.back()) == deletingWord
         );
     }
+
+    enum class DeleteAction
+    {
+        None, Character, PreviousWord
+    };
+
+    struct TextEdit
+    {
+        std::string typed;
+        DeleteAction deletion = DeleteAction::None;
+    };
+
+    TextEdit readTextEdit(bool controlDown)
+    {
+        TextEdit edit;
+
+        for (int ch = GetCharPressed(); ch > 0; ch = GetCharPressed()){
+            if(!controlDown && ch >= 32 && ch <= 126)
+                edit.typed.push_back(static_cast<char>(ch));
+        }
+
+        if(IsKeyPressed(KEY_BACKSPACE))
+            edit.deletion = controlDown 
+                ? DeleteAction::PreviousWord 
+                : DeleteAction::Character;
+        
+        return edit;
+    }
+
+    bool isAddressCharacter(char ch)
+    {
+        return (ch >= '0' && ch <= '9') ||
+               (ch >= 'a' && ch <= 'z') ||
+               (ch >= 'A' && ch <= 'Z') ||
+               ch == '.' || ch == '-' || ch == ':';
+    }
+
+    bool isPortCharacter(char ch)
+    {
+        return ch >= '0' && ch <= '9';
+    }
+
+    bool isNameCharacter(char ch)
+    {
+        return ch >= ' ' && ch <= '~';
+    }
+
+    struct FieldRules
+    {
+        std::size_t maxLength;
+        bool (*accepts)(char);
+    };
+
+    std::string applyTextEdit(std::string value, const TextEdit& edit, FieldRules rules)
+    {
+        for (char ch : edit.typed){
+            if(value.size() < rules.maxLength && rules.accepts(ch))
+                value.push_back(ch);
+        }
+
+        switch (edit.deletion){
+            case DeleteAction::Character:
+                if(!value.empty()) value.pop_back();
+                break;
+            case DeleteAction::PreviousWord:
+                erasePreviousWord(value);
+                break;
+            case DeleteAction::None:
+                break;
+        }
+
+        return value;
+    }
+    
 }
 
 SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
@@ -146,25 +221,11 @@ std::optional<SceneTransition> SettingsScene::update()
     }
 
     if (UI::isClicked(addressRectangle()))
-    {
-        activeField = InputField::ServerAddress;
-    }
+        activeField = SettingsField::ServerAddress;
     else if (UI::isClicked(portRectangle()))
-    {
-        activeField = InputField::Port;
-    }
+        activeField = SettingsField::Port;
     else if (UI::isClicked(nameRectangle()))
-    {
-        activeField = InputField::PlayerName;
-    }
-
-    if (controlDown)
-    {
-        discardTextInput();
-
-        if(!IsKeyPressed(KEY_BACKSPACE))
-            return std::nullopt;
-    }
+        activeField = SettingsField::PlayerName;
 
     handleTextInput(controlDown);
     return std::nullopt;
@@ -172,79 +233,47 @@ std::optional<SceneTransition> SettingsScene::update()
 
 void SettingsScene::handleTextInput(bool controlDown)
 {
-    std::string& target =
-        activeField == InputField::ServerAddress
-            ? settings.serverAddress
-            : activeField == InputField::Port
-                ? settings.port
-                : settings.playerName;
+    const TextEdit edit = readTextEdit(controlDown);
 
-    std::string editedValue = target;
-
-    int character = GetCharPressed();
-
-    while (character > 0)
-    {
-        bool allowed = false;
-        std::size_t maxLength = 0;
-
-        switch (activeField)
-        {
-            case InputField::ServerAddress:
-                allowed =
-                    (character >= '0' && character <= '9') ||
-                    (character >= 'a' && character <= 'z') ||
-                    (character >= 'A' && character <= 'Z') ||
-                    character == '.' ||
-                    character == '-' ||
-                    character == ':';
-
-                maxLength = 255;
-                break;
-
-            case InputField::Port:
-                allowed = character >= '0' && character <= '9';
-                maxLength = 5;
-                break;
-
-            case InputField::PlayerName:
-                allowed = character >= 32 && character <= 126;
-                maxLength = 32;
-                break;
-        }
-
-        if (allowed && editedValue.size() < maxLength)
-            editedValue += static_cast<char>(character);
-
-        character = GetCharPressed();
-    }
-
-    if (IsKeyPressed(KEY_BACKSPACE) && !editedValue.empty())
-    {
-        if (controlDown)
-            erasePreviousWord(editedValue);
-        else
-            editedValue.pop_back();
-    }
-
-    // Ignore rejected input and edits that leave the value unchanged.
-    if (editedValue == target)
+    if(edit.typed.empty() && edit.deletion == DeleteAction::None)
         return;
 
-    commandHistory.execute(
-        std::make_unique<ChangeTextCommand>(
-            target,
-            std::move(editedValue)
-        )
-    );
+    const auto editField = [&](std::string& field, FieldRules rules)
+    {
+        std::string updated = applyTextEdit(field, edit, rules);
 
-    TraceLog(LOG_INFO, "SETTINGS COMMAND: change text");
+        if(updated == field)
+            return;
+        
+        commandHistory.execute(
+            activeField,
+            std::make_unique<ChangeTextCommand>(field, std::move(updated))
+        );
+    };
+
+    switch (activeField)
+    {
+        case SettingsField::PlayerName:
+            editField(settings.playerName, {32, isNameCharacter});
+            break;
+
+        case SettingsField::ServerAddress:
+            editField(settings.serverAddress, {255, isAddressCharacter});
+            break;
+
+        case SettingsField::Port:
+            editField(settings.port, {5, isPortCharacter});
+            break;
+    }
 }
 
 void SettingsScene::undoLastEdit()
 {
-    if (commandHistory.undo())
+    if (const auto restoredField = commandHistory.undo())
+    {
+        activeField = *restoredField;
         TraceLog(LOG_INFO, "SETTINGS COMMAND: undo");
+    }
 }
 
 Rectangle SettingsScene::panelBounds() const
@@ -289,7 +318,7 @@ void SettingsScene::drawContent(Rectangle panel) const
     UI::drawTextField(
         name,
         settings.playerName,
-        activeField == InputField::PlayerName,
+        activeField == SettingsField::PlayerName,
         theme
     );
 
@@ -299,7 +328,7 @@ void SettingsScene::drawContent(Rectangle panel) const
     UI::drawTextField(
         address,
         settings.serverAddress,
-        activeField == InputField::ServerAddress,
+        activeField == SettingsField::ServerAddress,
         theme
     );
 
@@ -309,7 +338,7 @@ void SettingsScene::drawContent(Rectangle panel) const
     UI::drawTextField(
         port,
         settings.port,
-        activeField == InputField::Port,
+        activeField == SettingsField::Port,
         theme
     );
 

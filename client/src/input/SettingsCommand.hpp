@@ -4,6 +4,14 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <optional>
+
+enum class SettingsField
+{
+    ServerAddress,
+    Port,
+    PlayerName
+};
 
 class SettingsCommand
 {
@@ -43,40 +51,48 @@ private:
 class SettingsCommandHistory
 {
 public:
-    void execute(std::unique_ptr<SettingsCommand> command)
+    void execute(SettingsField field, std::unique_ptr<SettingsCommand> command)
     {
         if (!command)
             return;
 
-        // Allocate history storage before changing the setting.
-        commands.push_back(std::move(command));
+        entries.push_back({field, std::move(command)});
 
         try
         {
-            commands.back()->execute();
+            entries.back().command->execute();
         }
         catch (...)
         {
-            commands.pop_back();
+            entries.pop_back();
             throw;
         }
     }
 
-    bool undo()
+    std::optional<SettingsField> undo()
     {
-        if (commands.empty())
-            return false;
+        if (entries.empty())
+            return std::nullopt;
 
-        commands.back()->undo();
-        commands.pop_back();
-        return true;
+        auto& entry = entries.back();
+        entry.command->undo();
+
+        const SettingsField field = entry.field;
+        entries.pop_back();
+        return field;
     }
 
     bool canUndo() const
     {
-        return !commands.empty();
+        return !entries.empty();
     }
 
 private:
-    std::vector<std::unique_ptr<SettingsCommand>> commands;
+    struct Entry
+    {
+        SettingsField field;
+        std::unique_ptr<SettingsCommand> command;
+    };
+
+    std::vector<Entry> entries;
 };
