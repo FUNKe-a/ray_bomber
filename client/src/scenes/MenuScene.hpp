@@ -1,14 +1,13 @@
 #pragma once
 
-#include "Scene.hpp"
+#include "PanelScene.hpp"
 
-#include <memory>
 #include <string>
 
+struct ConnectionSettings;
 class GameSession;
-class ConnectionSettings;
 
-class MenuScene final : public Scene
+class MenuScene final : public PanelScene
 {
 public:
     MenuScene(
@@ -18,9 +17,11 @@ public:
     );
 
     std::optional<SceneTransition> update() override;
-    void render() const override;
 
 private:
+    Rectangle panelBounds() const override;
+    void drawContent(Rectangle panel) const override;
+
     GameSession& session;
     ConnectionSettings& settings;
     std::string errorMessage;

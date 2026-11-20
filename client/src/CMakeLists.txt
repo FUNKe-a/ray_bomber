@@ -33,6 +33,8 @@ target_sources(ray_bomber
     scenes/PlayingScene.hpp
     scenes/ResultsScene.hpp
     scenes/ResultsScene.cpp 
+    scenes/PanelScene.cpp
+    scenes/PanelScene.hpp
     input/GameplayCommand.hpp
     input/GameplayCommand.cpp
     input/GameplayInput.hpp

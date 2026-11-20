@@ -85,35 +85,16 @@ std::optional<SceneTransition> MenuScene::update()
     return std::nullopt;
 }
 
-void MenuScene::render() const
+Rectangle MenuScene::panelBounds() const
 {
-    const Color background{20, 20, 20, 255};
-    const Color panelColor{29, 29, 29, 255};
+    return menuRectangle();
+}
+
+void MenuScene::drawContent(Rectangle panel) const
+{
     const Color surface{42, 42, 42, 255};
     const Color text{240, 240, 240, 255};
     const Color muted{165, 165, 165, 255};
-
-    DrawRectangle(
-        0, 0,
-        GetScreenWidth(), GetScreenHeight(),
-        background
-    );
-
-    const auto panel = menuRectangle();
-
-    DrawRectangleRounded(
-        Rectangle{
-            panel.x + 5.0f,
-            panel.y + 7.0f,
-            panel.width,
-            panel.height
-        },
-        0.04f,
-        12,
-        Color{0, 0, 0, 65}
-    );
-
-    DrawRectangleRounded(panel, 0.04f, 12, panelColor);
 
     UI::drawCenteredText(
         Rectangle{
