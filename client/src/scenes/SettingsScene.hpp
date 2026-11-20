@@ -13,13 +13,6 @@ public:
     std::optional<SceneTransition> update() override;
 
 private:
-    enum class InputField
-    {
-        ServerAddress,
-        Port,
-        PlayerName
-    };
-
     Rectangle panelBounds() const override;
     void drawContent(Rectangle panel) const override;
 
@@ -27,6 +20,6 @@ private:
     void undoLastEdit();
 
     ConnectionSettings& settings;
-    InputField activeField = InputField::PlayerName;
+    SettingsField activeField = SettingsField::PlayerName;
     SettingsCommandHistory commandHistory;
 };

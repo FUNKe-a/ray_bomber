@@ -10,68 +10,84 @@
 #include <memory>
 #include <utility>
 #include <cctype>
+#include <algorithm>
+#include <array>
 
 namespace
 {
     Rectangle settingsRectangle()
     {
+        constexpr float width = 460.0f;
+        constexpr float height = 360.0f;
+
         return {
-            (GetScreenWidth() - 640.0f) / 2.0f,
-            (GetScreenHeight() - 552.0f) / 2.0f,
-            640.0f,
-            552.0f
+            (GetScreenWidth() - width) / 2.0f,
+            (GetScreenHeight() - height) / 2.0f,
+            width,
+            height
         };
     }
 
-    Rectangle fieldRectangle(float offset)
+    struct SettingsLayout
     {
-        const auto panel = settingsRectangle();
+        Rectangle nameField;
+        Rectangle addressField;
+        Rectangle portField;
+        Rectangle undoButton;
+        Rectangle backButton;
+    };
 
-        return {
-            panel.x + 32.0f,
-            panel.y + offset,
-            panel.width - 64.0f,
-            48.0f
+    SettingsLayout makeSettingsLayout(Rectangle panel)
+    {
+        constexpr float horizontalPadding = 32.0f;
+        constexpr float rowSpacing = 90.0f;
+        constexpr float controlHeight = 48.0f;
+        constexpr float columnGap = 16.0f;
+        constexpr float portWidth = 64.0f;
+        constexpr float undoWidth = 220.0f;
+
+        const float left = panel.x + horizontalPadding;
+        const float contentWidth = panel.width - 2.0f * horizontalPadding;
+        
+        const float nameY = panel.y + 100.0f;
+        const float connectionY = nameY + rowSpacing;
+        const float buttonY = connectionY + rowSpacing;
+
+        SettingsLayout layout{};
+        layout.nameField = {left, nameY, contentWidth, controlHeight};
+        
+        const float addressWidth = contentWidth - columnGap - portWidth;
+        const float portX = left + addressWidth + columnGap;
+        layout.addressField = {left, connectionY, addressWidth, controlHeight};
+        layout.portField = {portX, connectionY, portWidth, controlHeight};
+
+        const float backWidth = contentWidth - undoWidth - columnGap;
+        const float backX = left + undoWidth + columnGap;
+        layout.undoButton = {left, buttonY, undoWidth, controlHeight};
+        layout.backButton = {backX, buttonY, backWidth, controlHeight};
+
+        return layout;
+    }
+
+    SettingsField nextSettingsField(SettingsField current, bool backwards)
+    {
+        constexpr std::array order{
+            SettingsField::PlayerName,
+            SettingsField::ServerAddress,
+            SettingsField::Port
         };
-    }
 
-    Rectangle nameRectangle()
-    {
-        return fieldRectangle(154.0f);
-    }
+        const auto it = std::find(order.begin(), order.end(), current);
 
-    Rectangle addressRectangle()
-    {
-        return fieldRectangle(244.0f);
-    }
+        if (it == order.end())
+            return order.front();
 
-    Rectangle portRectangle()
-    {
-        return fieldRectangle(334.0f);
-    }
+        const auto index = static_cast<std::size_t>(it - order.begin());
 
-    Rectangle undoButtonRectangle()
-    {
-        const auto panel = settingsRectangle();
+        if (backwards)
+            return index == 0 ? order.back() : order[index - 1];
 
-        return {
-            panel.x + 32.0f,
-            panel.y + 424.0f,
-            220.0f,
-            48.0f
-        };
-    }
-
-    Rectangle backButtonRectangle()
-    {
-        const auto panel = settingsRectangle();
-
-        return {
-            panel.x + 268.0f,
-            panel.y + 424.0f,
-            panel.width - 300.0f,
-            48.0f
-        };
+        return order[(index + 1) % order.size()];
     }
 
     void drawFieldLabel(Rectangle bounds, const char* text)
@@ -83,13 +99,6 @@ namespace
             14.0f,
             Color{165, 165, 165, 255}
         );
-    }
-
-    void discardTextInput()
-    {
-        while (GetCharPressed() > 0)
-        {
-        }
     }
 
     void erasePreviousWord(std::string & text)
@@ -113,6 +122,80 @@ namespace
             isWordCharacter(text.back()) == deletingWord
         );
     }
+
+    enum class DeleteAction
+    {
+        None, Character, PreviousWord
+    };
+
+    struct TextEdit
+    {
+        std::string typed;
+        DeleteAction deletion = DeleteAction::None;
+    };
+
+    TextEdit readTextEdit(bool controlDown)
+    {
+        TextEdit edit;
+
+        for (int ch = GetCharPressed(); ch > 0; ch = GetCharPressed()){
+            if(!controlDown && ch >= 32 && ch <= 126)
+                edit.typed.push_back(static_cast<char>(ch));
+        }
+
+        if(IsKeyPressed(KEY_BACKSPACE))
+            edit.deletion = controlDown 
+                ? DeleteAction::PreviousWord 
+                : DeleteAction::Character;
+        
+        return edit;
+    }
+
+    bool isAddressCharacter(char ch)
+    {
+        return (ch >= '0' && ch <= '9') ||
+               (ch >= 'a' && ch <= 'z') ||
+               (ch >= 'A' && ch <= 'Z') ||
+               ch == '.' || ch == '-' || ch == ':';
+    }
+
+    bool isPortCharacter(char ch)
+    {
+        return ch >= '0' && ch <= '9';
+    }
+
+    bool isNameCharacter(char ch)
+    {
+        return ch >= ' ' && ch <= '~';
+    }
+
+    struct FieldRules
+    {
+        std::size_t maxLength;
+        bool (*accepts)(char);
+    };
+
+    std::string applyTextEdit(std::string value, const TextEdit& edit, FieldRules rules)
+    {
+        for (char ch : edit.typed){
+            if(value.size() < rules.maxLength && rules.accepts(ch))
+                value.push_back(ch);
+        }
+
+        switch (edit.deletion){
+            case DeleteAction::Character:
+                if(!value.empty()) value.pop_back();
+                break;
+            case DeleteAction::PreviousWord:
+                erasePreviousWord(value);
+                break;
+            case DeleteAction::None:
+                break;
+        }
+
+        return value;
+    }
+    
 }
 
 SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
@@ -121,7 +204,9 @@ SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
 
 std::optional<SceneTransition> SettingsScene::update()
 {
-    if (UI::isClicked(backButtonRectangle()) ||
+    const SettingsLayout layout = makeSettingsLayout(panelBounds());
+
+    if (UI::isClicked(layout.backButton) ||
         IsKeyPressed(KEY_ESCAPE))
     {
         return SceneTransition{SceneType::Menu, {}};
@@ -136,34 +221,26 @@ std::optional<SceneTransition> SettingsScene::update()
 
     if (undoShortcut ||
         UI::isClicked(
-            undoButtonRectangle(),
+            layout.undoButton,
             commandHistory.canUndo()
         ))
     {
-        discardTextInput();
+        while (GetCharPressed() > 0){}
         undoLastEdit();
         return std::nullopt;
     }
 
-    if (UI::isClicked(addressRectangle()))
+    if (UI::isClicked(layout.addressField))
+        activeField = SettingsField::ServerAddress;
+    else if (UI::isClicked(layout.portField))
+        activeField = SettingsField::Port;
+    else if (UI::isClicked(layout.nameField))
+        activeField = SettingsField::PlayerName;
+    else if (!controlDown && IsKeyPressed(KEY_TAB))
     {
-        activeField = InputField::ServerAddress;
-    }
-    else if (UI::isClicked(portRectangle()))
-    {
-        activeField = InputField::Port;
-    }
-    else if (UI::isClicked(nameRectangle()))
-    {
-        activeField = InputField::PlayerName;
-    }
+        const bool backwards = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
 
-    if (controlDown)
-    {
-        discardTextInput();
-
-        if(!IsKeyPressed(KEY_BACKSPACE))
-            return std::nullopt;
+        activeField = nextSettingsField(activeField, backwards);
     }
 
     handleTextInput(controlDown);
@@ -172,79 +249,47 @@ std::optional<SceneTransition> SettingsScene::update()
 
 void SettingsScene::handleTextInput(bool controlDown)
 {
-    std::string& target =
-        activeField == InputField::ServerAddress
-            ? settings.serverAddress
-            : activeField == InputField::Port
-                ? settings.port
-                : settings.playerName;
+    const TextEdit edit = readTextEdit(controlDown);
 
-    std::string editedValue = target;
-
-    int character = GetCharPressed();
-
-    while (character > 0)
-    {
-        bool allowed = false;
-        std::size_t maxLength = 0;
-
-        switch (activeField)
-        {
-            case InputField::ServerAddress:
-                allowed =
-                    (character >= '0' && character <= '9') ||
-                    (character >= 'a' && character <= 'z') ||
-                    (character >= 'A' && character <= 'Z') ||
-                    character == '.' ||
-                    character == '-' ||
-                    character == ':';
-
-                maxLength = 255;
-                break;
-
-            case InputField::Port:
-                allowed = character >= '0' && character <= '9';
-                maxLength = 5;
-                break;
-
-            case InputField::PlayerName:
-                allowed = character >= 32 && character <= 126;
-                maxLength = 32;
-                break;
-        }
-
-        if (allowed && editedValue.size() < maxLength)
-            editedValue += static_cast<char>(character);
-
-        character = GetCharPressed();
-    }
-
-    if (IsKeyPressed(KEY_BACKSPACE) && !editedValue.empty())
-    {
-        if (controlDown)
-            erasePreviousWord(editedValue);
-        else
-            editedValue.pop_back();
-    }
-
-    // Ignore rejected input and edits that leave the value unchanged.
-    if (editedValue == target)
+    if(edit.typed.empty() && edit.deletion == DeleteAction::None)
         return;
 
-    commandHistory.execute(
-        std::make_unique<ChangeTextCommand>(
-            target,
-            std::move(editedValue)
-        )
-    );
+    const auto editField = [&](std::string& field, FieldRules rules)
+    {
+        std::string updated = applyTextEdit(field, edit, rules);
 
-    TraceLog(LOG_INFO, "SETTINGS COMMAND: change text");
+        if(updated == field)
+            return;
+        
+        commandHistory.execute(
+            activeField,
+            std::make_unique<ChangeTextCommand>(field, std::move(updated))
+        );
+    };
+
+    switch (activeField)
+    {
+        case SettingsField::PlayerName:
+            editField(settings.playerName, {32, isNameCharacter});
+            break;
+
+        case SettingsField::ServerAddress:
+            editField(settings.serverAddress, {255, isAddressCharacter});
+            break;
+
+        case SettingsField::Port:
+            editField(settings.port, {5, isPortCharacter});
+            break;
+    }
 }
 
 void SettingsScene::undoLastEdit()
 {
-    if (commandHistory.undo())
+    if (const auto restoredField = commandHistory.undo())
+    {
+        activeField = *restoredField;
         TraceLog(LOG_INFO, "SETTINGS COMMAND: undo");
+    }
 }
 
 Rectangle SettingsScene::panelBounds() const
@@ -254,88 +299,55 @@ Rectangle SettingsScene::panelBounds() const
 
 void SettingsScene::drawContent(Rectangle panel) const
 {
-    const Color text{240, 240, 240, 255};
-    const Color muted{165, 165, 165, 255};
+    const SettingsLayout layout = makeSettingsLayout(panel);
 
-    UI::drawText(
-        "CONNECTION",
-        panel.x + 32.0f,
-        panel.y + 24.0f,
-        14.0f,
-        muted
-    );
+    const Color text{240, 240, 240, 255};
 
     UI::drawText(
         "Settings",
         panel.x + 32.0f,
-        panel.y + 48.0f,
+        panel.y + 24.0f,
         32.0f,
         text
     );
 
-    UI::drawText(
-        "Choose your name and the server to connect to.",
-        panel.x + 32.0f,
-        panel.y + 91.0f,
-        16.0f,
-        muted
-    );
-
     const auto theme = UI::darkTheme();
 
-    const auto name = nameRectangle();
-    drawFieldLabel(name, "PLAYER NAME");
-
+    drawFieldLabel(layout.nameField, "PLAYER NAME");
     UI::drawTextField(
-        name,
+        layout.nameField,
         settings.playerName,
-        activeField == InputField::PlayerName,
+        activeField == SettingsField::PlayerName,
         theme
     );
 
-    const auto address = addressRectangle();
-    drawFieldLabel(address, "SERVER ADDRESS");
-
+    drawFieldLabel(layout.addressField, "SERVER ADDRESS");
     UI::drawTextField(
-        address,
+        layout.addressField,
         settings.serverAddress,
-        activeField == InputField::ServerAddress,
+        activeField == SettingsField::ServerAddress,
         theme
     );
 
-    const auto port = portRectangle();
-    drawFieldLabel(port, "PORT");
-
+    drawFieldLabel(layout.portField, "PORT");
     UI::drawTextField(
-        port,
+        layout.portField,
         settings.port,
-        activeField == InputField::Port,
+        activeField == SettingsField::Port,
         theme
     );
 
     UI::drawButton(
-        undoButtonRectangle(),
+        layout.undoButton,
         "UNDO  [Ctrl+Z]",
         commandHistory.canUndo(),
         UI::amberButtonTheme()
     );
 
     UI::drawButton(
-        backButtonRectangle(),
+        layout.backButton,
         "BACK TO MENU  [Esc]",
         true,
         UI::greenButtonTheme()
-    );
-
-    UI::drawCenteredText(
-        Rectangle{
-            panel.x + 32.0f,
-            panel.y + 492.0f,
-            panel.width - 64.0f,
-            24.0f
-        },
-        "Edits apply immediately. Undo is available until you leave.",
-        14,
-        muted
     );
 }
