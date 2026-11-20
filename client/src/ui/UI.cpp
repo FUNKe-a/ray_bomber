@@ -133,35 +133,44 @@ namespace UI
         const Theme& theme
     )
     {
-        const std::string value{text};
-
         DrawRectangleRec(bounds, theme.surface);
-
         DrawRectangleLinesEx(
             bounds,
             theme.borderWidth,
             focused ? theme.focus : theme.border
         );
 
-        // Keep long values inside the field.
-        BeginScissorMode(
-            static_cast<int>(bounds.x + theme.padding),
-            static_cast<int>(bounds.y + theme.borderWidth),
-            static_cast<int>(bounds.width - 2 * theme.padding),
-            static_cast<int>(bounds.height - 2 * theme.borderWidth)
-        );
+        const int left = static_cast<int>(bounds.x + theme.padding);
+        const int top = static_cast<int>(bounds.y + theme.borderWidth);
+        const int width = static_cast<int>(bounds.width - 2*theme.padding);
+        const int height = static_cast<int>(bounds.height - 2*theme.borderWidth);
 
-        const float size = drawingSize(
-            static_cast<float>(theme.fontSize)
-        );
+        if (width <= 0 || height <= 0)
+            return;
 
-        drawText(
-            value,
-            bounds.x + theme.padding,
-            bounds.y + (bounds.height - size) / 2.0f,
-            size,
-            theme.text
-        );
+        const float size = drawingSize(static_cast<float>(theme.fontSize));
+        const float textY = std::round(bounds.y + (bounds.height - size) / 2.0f);
+        float textX = static_cast<float>(left);
+
+        constexpr float caretWidth = 2.0f;
+        float caretX = textX;
+
+        if (focused) 
+        {
+            const float textWidth = measureText(text, size);
+            const float gap = text.empty() ? 0.0f : 1.0f;
+
+            const float overflow = textWidth + gap + caretWidth - width;
+            textX -= std::max(0.0f, overflow);
+            caretX = std::round(textX + textWidth + gap);
+        }
+
+        BeginScissorMode(left, top, width, height);
+
+        drawText(text, textX, textY, size, theme.text);
+
+        if(focused && std::fmod(GetTime(), 1.0) < 0.5)
+            DrawRectangleRec(Rectangle{caretX, textY, caretWidth, size}, theme.focus);
 
         EndScissorMode();
     }

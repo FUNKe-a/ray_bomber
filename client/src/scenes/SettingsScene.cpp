@@ -9,6 +9,7 @@
 #include <string>
 #include <memory>
 #include <utility>
+#include <cctype>
 
 namespace
 {
@@ -90,6 +91,28 @@ namespace
         {
         }
     }
+
+    void erasePreviousWord(std::string & text)
+    {
+        while(!text.empty() && text.back() == ' ')
+            text.pop_back();
+
+        if (text.empty())
+            return;
+        
+        const auto isWordCharacter = [](char ch){
+            return std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_';
+        };
+
+        const bool deletingWord = isWordCharacter(text.back());
+
+        do text.pop_back();
+        while (
+            !text.empty() && 
+            text.back() != ' ' && 
+            isWordCharacter(text.back()) == deletingWord
+        );
+    }
 }
 
 SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
@@ -138,14 +161,16 @@ std::optional<SceneTransition> SettingsScene::update()
     if (controlDown)
     {
         discardTextInput();
-        return std::nullopt;
+
+        if(!IsKeyPressed(KEY_BACKSPACE))
+            return std::nullopt;
     }
 
-    handleTextInput();
+    handleTextInput(controlDown);
     return std::nullopt;
 }
 
-void SettingsScene::handleTextInput()
+void SettingsScene::handleTextInput(bool controlDown)
 {
     std::string& target =
         activeField == InputField::ServerAddress
@@ -195,7 +220,12 @@ void SettingsScene::handleTextInput()
     }
 
     if (IsKeyPressed(KEY_BACKSPACE) && !editedValue.empty())
-        editedValue.pop_back();
+    {
+        if (controlDown)
+            erasePreviousWord(editedValue);
+        else
+            editedValue.pop_back();
+    }
 
     // Ignore rejected input and edits that leave the value unchanged.
     if (editedValue == target)
@@ -217,34 +247,15 @@ void SettingsScene::undoLastEdit()
         TraceLog(LOG_INFO, "SETTINGS COMMAND: undo");
 }
 
-void SettingsScene::render() const
+Rectangle SettingsScene::panelBounds() const
 {
-    const Color background{20, 20, 20, 255};
-    const Color panelColor{29, 29, 29, 255};
+    return settingsRectangle();
+}
+
+void SettingsScene::drawContent(Rectangle panel) const
+{
     const Color text{240, 240, 240, 255};
     const Color muted{165, 165, 165, 255};
-
-    DrawRectangle(
-        0, 0,
-        GetScreenWidth(), GetScreenHeight(),
-        background
-    );
-
-    const auto panel = settingsRectangle();
-
-    DrawRectangleRounded(
-        Rectangle{
-            panel.x + 5.0f,
-            panel.y + 7.0f,
-            panel.width,
-            panel.height
-        },
-        0.04f,
-        12,
-        Color{0, 0, 0, 65}
-    );
-
-    DrawRectangleRounded(panel, 0.04f, 12, panelColor);
 
     UI::drawText(
         "CONNECTION",

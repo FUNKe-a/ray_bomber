@@ -1,19 +1,16 @@
 #pragma once
 
-#include "Scene.hpp"
+#include "PanelScene.hpp"
 #include "SettingsCommand.hpp"
-
-#include <memory>
 
 struct ConnectionSettings;
 
-class SettingsScene final : public Scene
+class SettingsScene final : public PanelScene
 {
 public:
     SettingsScene(ConnectionSettings& settings);
 
     std::optional<SceneTransition> update() override;
-    void render() const override;
 
 private:
     enum class InputField
@@ -23,7 +20,10 @@ private:
         PlayerName
     };
 
-    void handleTextInput();
+    Rectangle panelBounds() const override;
+    void drawContent(Rectangle panel) const override;
+
+    void handleTextInput(bool controlDown);
     void undoLastEdit();
 
     ConnectionSettings& settings;
