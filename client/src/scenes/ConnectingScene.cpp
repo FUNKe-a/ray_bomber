@@ -157,7 +157,7 @@ void ConnectingScene::render() const
 
     UI::drawButton(
         cancelButtonRectangle(),
-        "CANCEL  [Esc]",
+        "CANCEL",
         true,
         UI::darkTheme()
     );

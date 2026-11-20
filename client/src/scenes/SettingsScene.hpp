@@ -2,8 +2,7 @@
 
 #include "PanelScene.hpp"
 #include "SettingsCommand.hpp"
-
-struct ConnectionSettings;
+#include "ConnectionSettings.hpp"
 
 class SettingsScene final : public PanelScene
 {
@@ -20,6 +19,7 @@ private:
     void undoLastEdit();
 
     ConnectionSettings& settings;
+    const ConnectionSettings::Memento openingSettings;
     SettingsField activeField = SettingsField::PlayerName;
     SettingsCommandHistory commandHistory;
 };

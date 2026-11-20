@@ -34,6 +34,7 @@ namespace
         Rectangle addressField;
         Rectangle portField;
         Rectangle undoButton;
+        Rectangle restoreButton;
         Rectangle backButton;
     };
 
@@ -44,7 +45,6 @@ namespace
         constexpr float controlHeight = 48.0f;
         constexpr float columnGap = 16.0f;
         constexpr float portWidth = 64.0f;
-        constexpr float undoWidth = 220.0f;
 
         const float left = panel.x + horizontalPadding;
         const float contentWidth = panel.width - 2.0f * horizontalPadding;
@@ -61,10 +61,13 @@ namespace
         layout.addressField = {left, connectionY, addressWidth, controlHeight};
         layout.portField = {portX, connectionY, portWidth, controlHeight};
 
-        const float backWidth = contentWidth - undoWidth - columnGap;
-        const float backX = left + undoWidth + columnGap;
-        layout.undoButton = {left, buttonY, undoWidth, controlHeight};
-        layout.backButton = {backX, buttonY, backWidth, controlHeight};
+        const float buttonWidth = (contentWidth - 2.0f * columnGap) / 3.0f;
+        const float buttonStep = buttonWidth + columnGap;
+        const float backX = left + 2 * buttonStep;
+
+        layout.undoButton = {left, buttonY, buttonWidth, controlHeight};
+        layout.restoreButton = {left + buttonStep, buttonY, buttonWidth, controlHeight};
+        layout.backButton = {backX, buttonY, buttonWidth, controlHeight};
 
         return layout;
     }
@@ -169,6 +172,14 @@ namespace
         return ch >= ' ' && ch <= '~';
     }
 
+    void discardTextInput()
+    {
+        while (GetCharPressed() > 0)
+        {
+            // Drain queued characters for this frame.
+        }
+    }
+
     struct FieldRules
     {
         std::size_t maxLength;
@@ -198,7 +209,8 @@ namespace
     
 }
 
-SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
+SettingsScene::SettingsScene(ConnectionSettings& settings)
+    : settings(settings), openingSettings(settings.save())
 {
 }
 
@@ -225,8 +237,16 @@ std::optional<SceneTransition> SettingsScene::update()
             commandHistory.canUndo()
         ))
     {
-        while (GetCharPressed() > 0){}
+        discardTextInput();
         undoLastEdit();
+        return std::nullopt;
+    }
+
+    if (UI::isClicked(layout.restoreButton, settings.differsFrom(openingSettings)))
+    {
+        discardTextInput();
+        settings.restore(openingSettings);
+        commandHistory.clear();
         return std::nullopt;
     }
 
@@ -254,31 +274,34 @@ void SettingsScene::handleTextInput(bool controlDown)
     if(edit.typed.empty() && edit.deletion == DeleteAction::None)
         return;
 
-    const auto editField = [&](std::string& field, FieldRules rules)
+    const auto editField = [&](FieldRules rules)
     {
-        std::string updated = applyTextEdit(field, edit, rules);
+        const auto& current = settings.value(activeField);
+        std::string updated = applyTextEdit(current, edit, rules);
 
-        if(updated == field)
+        if(updated == current)
             return;
         
         commandHistory.execute(
             activeField,
-            std::make_unique<ChangeTextCommand>(field, std::move(updated))
+            std::make_unique<ChangeTextCommand>(
+                settings, activeField, std::move(updated)
+            )
         );
     };
 
     switch (activeField)
     {
         case SettingsField::PlayerName:
-            editField(settings.playerName, {32, isNameCharacter});
+            editField({32, isNameCharacter});
             break;
 
         case SettingsField::ServerAddress:
-            editField(settings.serverAddress, {255, isAddressCharacter});
+            editField({255, isAddressCharacter});
             break;
 
         case SettingsField::Port:
-            editField(settings.port, {5, isPortCharacter});
+            editField({5, isPortCharacter});
             break;
     }
 }
@@ -316,7 +339,7 @@ void SettingsScene::drawContent(Rectangle panel) const
     drawFieldLabel(layout.nameField, "PLAYER NAME");
     UI::drawTextField(
         layout.nameField,
-        settings.playerName,
+        settings.value(SettingsField::PlayerName),
         activeField == SettingsField::PlayerName,
         theme
     );
@@ -324,7 +347,7 @@ void SettingsScene::drawContent(Rectangle panel) const
     drawFieldLabel(layout.addressField, "SERVER ADDRESS");
     UI::drawTextField(
         layout.addressField,
-        settings.serverAddress,
+        settings.value(SettingsField::ServerAddress),
         activeField == SettingsField::ServerAddress,
         theme
     );
@@ -332,21 +355,28 @@ void SettingsScene::drawContent(Rectangle panel) const
     drawFieldLabel(layout.portField, "PORT");
     UI::drawTextField(
         layout.portField,
-        settings.port,
+        settings.value(SettingsField::Port),
         activeField == SettingsField::Port,
         theme
     );
 
     UI::drawButton(
         layout.undoButton,
-        "UNDO  [Ctrl+Z]",
+        "UNDO",
         commandHistory.canUndo(),
         UI::amberButtonTheme()
     );
 
     UI::drawButton(
+        layout.restoreButton,
+        "RESTORE",
+        settings.differsFrom(openingSettings),
+        UI::darkTheme()
+    );
+
+    UI::drawButton(
         layout.backButton,
-        "BACK TO MENU  [Esc]",
+        "BACK TO MENU",
         true,
         UI::greenButtonTheme()
     );

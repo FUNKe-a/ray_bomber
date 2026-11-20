@@ -8,7 +8,7 @@
 
 class GameSession;
 class GameFacade;
-struct ConnectionSettings;
+class ConnectionSettings;
 
 // Factory Method creator.
 class SceneCreator
