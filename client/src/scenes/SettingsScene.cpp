@@ -10,7 +10,6 @@
 #include <memory>
 #include <utility>
 #include <cctype>
-#include <cstddef>
 
 namespace
 {
@@ -24,55 +23,43 @@ namespace
         };
     }
 
-    Rectangle fieldRectangle(float offset)
+    struct SettingsLayout
     {
-        const auto panel = settingsRectangle();
+        Rectangle nameField;
+        Rectangle addressField;
+        Rectangle portField;
+        Rectangle undoButton;
+        Rectangle backButton;
+    };
 
-        return {
-            panel.x + 32.0f,
-            panel.y + offset,
-            panel.width - 64.0f,
-            48.0f
+    SettingsLayout makeSettingsLayout(Rectangle panel)
+    {
+        constexpr float horizontalPadding = 32.0f;
+        constexpr float fieldHeight = 48.0f;
+        constexpr float fieldSpacing = 90.0f;
+        constexpr float buttonHeight = 48.0f;
+        constexpr float undoWidth = 220.0f;
+        constexpr float buttonGap = 16.0f;  
+
+        const float left = panel.x + horizontalPadding;
+        const float contentWidth = panel.width - 2.0f * horizontalPadding;
+        const float firstFieldY = panel.y + 154.0f;
+        const float buttonY = firstFieldY + 3.0f * fieldSpacing;
+
+        SettingsLayout layout{};
+        layout.nameField    = {left, firstFieldY,                       contentWidth, fieldHeight};
+        layout.addressField = {left, firstFieldY + fieldSpacing,        contentWidth, fieldHeight};
+        layout.portField    = {left, firstFieldY + 2.0f * fieldSpacing, contentWidth, fieldHeight};
+
+        layout.undoButton = {left, buttonY, undoWidth, buttonHeight};
+        layout.backButton = {
+            left + undoWidth + buttonGap,
+            buttonY,
+            contentWidth - undoWidth - buttonGap,
+            buttonHeight
         };
-    }
 
-    Rectangle nameRectangle()
-    {
-        return fieldRectangle(154.0f);
-    }
-
-    Rectangle addressRectangle()
-    {
-        return fieldRectangle(244.0f);
-    }
-
-    Rectangle portRectangle()
-    {
-        return fieldRectangle(334.0f);
-    }
-
-    Rectangle undoButtonRectangle()
-    {
-        const auto panel = settingsRectangle();
-
-        return {
-            panel.x + 32.0f,
-            panel.y + 424.0f,
-            220.0f,
-            48.0f
-        };
-    }
-
-    Rectangle backButtonRectangle()
-    {
-        const auto panel = settingsRectangle();
-
-        return {
-            panel.x + 268.0f,
-            panel.y + 424.0f,
-            panel.width - 300.0f,
-            48.0f
-        };
+        return layout;
     }
 
     void drawFieldLabel(Rectangle bounds, const char* text)
@@ -84,13 +71,6 @@ namespace
             14.0f,
             Color{165, 165, 165, 255}
         );
-    }
-
-    void discardTextInput()
-    {
-        while (GetCharPressed() > 0)
-        {
-        }
     }
 
     void erasePreviousWord(std::string & text)
@@ -196,7 +176,9 @@ SettingsScene::SettingsScene(ConnectionSettings& settings): settings(settings)
 
 std::optional<SceneTransition> SettingsScene::update()
 {
-    if (UI::isClicked(backButtonRectangle()) ||
+    const SettingsLayout layout = makeSettingsLayout(panelBounds());
+
+    if (UI::isClicked(layout.backButton) ||
         IsKeyPressed(KEY_ESCAPE))
     {
         return SceneTransition{SceneType::Menu, {}};
@@ -211,20 +193,20 @@ std::optional<SceneTransition> SettingsScene::update()
 
     if (undoShortcut ||
         UI::isClicked(
-            undoButtonRectangle(),
+            layout.undoButton,
             commandHistory.canUndo()
         ))
     {
-        discardTextInput();
+        while (GetCharPressed() > 0){}
         undoLastEdit();
         return std::nullopt;
     }
 
-    if (UI::isClicked(addressRectangle()))
+    if (UI::isClicked(layout.addressField))
         activeField = SettingsField::ServerAddress;
-    else if (UI::isClicked(portRectangle()))
+    else if (UI::isClicked(layout.portField))
         activeField = SettingsField::Port;
-    else if (UI::isClicked(nameRectangle()))
+    else if (UI::isClicked(layout.nameField))
         activeField = SettingsField::PlayerName;
 
     handleTextInput(controlDown);
@@ -283,6 +265,8 @@ Rectangle SettingsScene::panelBounds() const
 
 void SettingsScene::drawContent(Rectangle panel) const
 {
+    const SettingsLayout layout = makeSettingsLayout(panel);
+
     const Color text{240, 240, 240, 255};
     const Color muted{165, 165, 165, 255};
 
@@ -312,59 +296,41 @@ void SettingsScene::drawContent(Rectangle panel) const
 
     const auto theme = UI::darkTheme();
 
-    const auto name = nameRectangle();
-    drawFieldLabel(name, "PLAYER NAME");
-
+    drawFieldLabel(layout.nameField, "PLAYER NAME");
     UI::drawTextField(
-        name,
+        layout.nameField,
         settings.playerName,
         activeField == SettingsField::PlayerName,
         theme
     );
 
-    const auto address = addressRectangle();
-    drawFieldLabel(address, "SERVER ADDRESS");
-
+    drawFieldLabel(layout.addressField, "SERVER ADDRESS");
     UI::drawTextField(
-        address,
+        layout.addressField,
         settings.serverAddress,
         activeField == SettingsField::ServerAddress,
         theme
     );
 
-    const auto port = portRectangle();
-    drawFieldLabel(port, "PORT");
-
+    drawFieldLabel(layout.portField, "PORT");
     UI::drawTextField(
-        port,
+        layout.portField,
         settings.port,
         activeField == SettingsField::Port,
         theme
     );
 
     UI::drawButton(
-        undoButtonRectangle(),
+        layout.undoButton,
         "UNDO  [Ctrl+Z]",
         commandHistory.canUndo(),
         UI::amberButtonTheme()
     );
 
     UI::drawButton(
-        backButtonRectangle(),
+        layout.backButton,
         "BACK TO MENU  [Esc]",
         true,
         UI::greenButtonTheme()
-    );
-
-    UI::drawCenteredText(
-        Rectangle{
-            panel.x + 32.0f,
-            panel.y + 492.0f,
-            panel.width - 64.0f,
-            24.0f
-        },
-        "Edits apply immediately. Undo is available until you leave.",
-        14,
-        muted
     );
 }
