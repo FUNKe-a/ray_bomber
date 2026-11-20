@@ -85,9 +85,9 @@ namespace
             );
         };
 
-        drawRow(13.0f, "PLAYER", settings.playerName);
-        drawRow(48.0f, "SERVER", settings.serverAddress);
-        drawRow(83.0f, "PORT", settings.port);
+        drawRow(13.0f, "PLAYER", settings.value(SettingsField::PlayerName));
+        drawRow(48.0f, "SERVER", settings.value(SettingsField::ServerAddress));
+        drawRow(83.0f, "PORT", settings.value(SettingsField::Port));
     }
 
     void drawMenuButtons(const MenuLayout& layout)
@@ -127,7 +127,11 @@ std::optional<SceneTransition> MenuScene::update()
         if (!port)
             return std::nullopt;
 
-        session.connect(settings.serverAddress, *port, settings.playerName);
+        session.connect(
+            settings.value(SettingsField::ServerAddress), 
+            *port, 
+            settings.value(SettingsField::PlayerName));
+
         return SceneTransition{SceneType::Connecting, {}};
     }
 

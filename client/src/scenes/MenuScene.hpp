@@ -4,7 +4,7 @@
 
 #include <string>
 
-struct ConnectionSettings;
+class ConnectionSettings;
 class GameSession;
 
 class MenuScene final : public PanelScene

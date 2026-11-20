@@ -1,17 +1,12 @@
 #pragma once
 
+#include "ConnectionSettings.hpp"
+
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 #include <optional>
-
-enum class SettingsField
-{
-    ServerAddress,
-    Port,
-    PlayerName
-};
 
 class SettingsCommand
 {
@@ -25,25 +20,31 @@ public:
 class ChangeTextCommand final : public SettingsCommand
 {
 public:
-    ChangeTextCommand(std::string& target, std::string newValue)
-        : target(target),
-          previousValue(target),
+    ChangeTextCommand(
+        ConnectionSettings& settings,
+        SettingsField field,
+        std::string newValue
+    )
+        : settings(settings),
+          field(field),
+          previousValue(settings.value(field)),
           newValue(std::move(newValue))
     {
     }
 
     void execute() override
     {
-        target = newValue;
+        settings.setValue(field, newValue);
     }
 
     void undo() override
     {
-        target = previousValue;
+        settings.setValue(field, previousValue);
     }
 
 private:
-    std::string& target;
+    ConnectionSettings& settings;
+    SettingsField field;
     std::string previousValue;
     std::string newValue;
 };
@@ -85,6 +86,11 @@ public:
     bool canUndo() const
     {
         return !entries.empty();
+    }
+
+    void clear()
+    {
+        entries.clear();
     }
 
 private:
