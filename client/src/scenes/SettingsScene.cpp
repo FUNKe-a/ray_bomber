@@ -10,6 +10,8 @@
 #include <memory>
 #include <utility>
 #include <cctype>
+#include <algorithm>
+#include <array>
 
 namespace
 {
@@ -60,6 +62,27 @@ namespace
         };
 
         return layout;
+    }
+
+    SettingsField nextSettingsField(SettingsField current, bool backwards)
+    {
+        constexpr std::array order{
+            SettingsField::PlayerName,
+            SettingsField::ServerAddress,
+            SettingsField::Port
+        };
+
+        const auto it = std::find(order.begin(), order.end(), current);
+
+        if (it == order.end())
+            return order.front();
+
+        const auto index = static_cast<std::size_t>(it - order.begin());
+
+        if (backwards)
+            return index == 0 ? order.back() : order[index - 1];
+
+        return order[(index + 1) % order.size()];
     }
 
     void drawFieldLabel(Rectangle bounds, const char* text)
@@ -208,6 +231,12 @@ std::optional<SceneTransition> SettingsScene::update()
         activeField = SettingsField::Port;
     else if (UI::isClicked(layout.nameField))
         activeField = SettingsField::PlayerName;
+    else if (!controlDown && IsKeyPressed(KEY_TAB))
+    {
+        const bool backwards = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+
+        activeField = nextSettingsField(activeField, backwards);
+    }
 
     handleTextInput(controlDown);
     return std::nullopt;
