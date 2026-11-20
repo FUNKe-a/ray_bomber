@@ -17,11 +17,14 @@ namespace
 {
     Rectangle settingsRectangle()
     {
+        constexpr float width = 460.0f;
+        constexpr float height = 360.0f;
+
         return {
-            (GetScreenWidth() - 640.0f) / 2.0f,
-            (GetScreenHeight() - 552.0f) / 2.0f,
-            640.0f,
-            552.0f
+            (GetScreenWidth() - width) / 2.0f,
+            (GetScreenHeight() - height) / 2.0f,
+            width,
+            height
         };
     }
 
@@ -37,29 +40,31 @@ namespace
     SettingsLayout makeSettingsLayout(Rectangle panel)
     {
         constexpr float horizontalPadding = 32.0f;
-        constexpr float fieldHeight = 48.0f;
-        constexpr float fieldSpacing = 90.0f;
-        constexpr float buttonHeight = 48.0f;
+        constexpr float rowSpacing = 90.0f;
+        constexpr float controlHeight = 48.0f;
+        constexpr float columnGap = 16.0f;
+        constexpr float portWidth = 64.0f;
         constexpr float undoWidth = 220.0f;
-        constexpr float buttonGap = 16.0f;  
 
         const float left = panel.x + horizontalPadding;
         const float contentWidth = panel.width - 2.0f * horizontalPadding;
-        const float firstFieldY = panel.y + 154.0f;
-        const float buttonY = firstFieldY + 3.0f * fieldSpacing;
+        
+        const float nameY = panel.y + 100.0f;
+        const float connectionY = nameY + rowSpacing;
+        const float buttonY = connectionY + rowSpacing;
 
         SettingsLayout layout{};
-        layout.nameField    = {left, firstFieldY,                       contentWidth, fieldHeight};
-        layout.addressField = {left, firstFieldY + fieldSpacing,        contentWidth, fieldHeight};
-        layout.portField    = {left, firstFieldY + 2.0f * fieldSpacing, contentWidth, fieldHeight};
+        layout.nameField = {left, nameY, contentWidth, controlHeight};
+        
+        const float addressWidth = contentWidth - columnGap - portWidth;
+        const float portX = left + addressWidth + columnGap;
+        layout.addressField = {left, connectionY, addressWidth, controlHeight};
+        layout.portField = {portX, connectionY, portWidth, controlHeight};
 
-        layout.undoButton = {left, buttonY, undoWidth, buttonHeight};
-        layout.backButton = {
-            left + undoWidth + buttonGap,
-            buttonY,
-            contentWidth - undoWidth - buttonGap,
-            buttonHeight
-        };
+        const float backWidth = contentWidth - undoWidth - columnGap;
+        const float backX = left + undoWidth + columnGap;
+        layout.undoButton = {left, buttonY, undoWidth, controlHeight};
+        layout.backButton = {backX, buttonY, backWidth, controlHeight};
 
         return layout;
     }
@@ -297,30 +302,13 @@ void SettingsScene::drawContent(Rectangle panel) const
     const SettingsLayout layout = makeSettingsLayout(panel);
 
     const Color text{240, 240, 240, 255};
-    const Color muted{165, 165, 165, 255};
-
-    UI::drawText(
-        "CONNECTION",
-        panel.x + 32.0f,
-        panel.y + 24.0f,
-        14.0f,
-        muted
-    );
 
     UI::drawText(
         "Settings",
         panel.x + 32.0f,
-        panel.y + 48.0f,
+        panel.y + 24.0f,
         32.0f,
         text
-    );
-
-    UI::drawText(
-        "Choose your name and the server to connect to.",
-        panel.x + 32.0f,
-        panel.y + 91.0f,
-        16.0f,
-        muted
     );
 
     const auto theme = UI::darkTheme();

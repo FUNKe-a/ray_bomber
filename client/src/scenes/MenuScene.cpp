@@ -12,36 +12,93 @@ namespace
 {
     Rectangle menuRectangle()
     {
+        constexpr float width = 460.0f;
+        constexpr float height = 384.0f;
+
         return {
-            (GetScreenWidth() - 560.0f) / 2.0f,
-            (GetScreenHeight() - 520.0f) / 2.0f,
-            560.0f,
-            520.0f
+            (GetScreenWidth() - width) / 2.0f,
+            (GetScreenHeight() - height) / 2.0f,
+            width,
+            height
         };
     }
 
-    Rectangle connectButtonRectangle()
+    struct MenuLayout
     {
-        const auto panel = menuRectangle();
+        Rectangle title;
+        Rectangle connectionCard;
+        Rectangle connectButton;
+        Rectangle settingsButton;
+        Rectangle errorMessage;
+    };
 
-        return {
-            panel.x + 32.0f,
-            panel.y + 322.0f,
-            panel.width - 64.0f,
-            50.0f
-        };
+    MenuLayout makeMenuLayout(Rectangle panel)
+    {
+        constexpr float horizontalPadding = 32.0f;
+
+        const float left = panel.x + horizontalPadding;
+        const float width = panel.width - 2.0f * horizontalPadding;
+
+        MenuLayout layout{};
+        layout.title          = {left, panel.y + 16.0f,  width, 54.0f};
+        layout.connectionCard = {left, panel.y + 86.0f,  width, 122.0f};
+        layout.connectButton  = {left, panel.y + 238.0f, width, 48.0f};
+        layout.settingsButton = {left, panel.y + 300.0f, width, 48.0f};
+        layout.errorMessage   = {left, panel.y + 350.0f, width, 34.0f};
+        return layout;
     }
 
-    Rectangle settingsButtonRectangle()
-    {
-        const auto panel = menuRectangle();
+    constexpr Color MenuText{240, 240, 240, 255};
+    constexpr Color MenuMuted{165, 165, 165, 255};
+    constexpr Color MenuCard{42, 42, 42, 255};
+    constexpr Color MenuError{239, 168, 107, 255};
 
-        return {
-            panel.x + 32.0f,
-            panel.y + 384.0f,
-            panel.width - 64.0f,
-            46.0f
+    void drawConnectionCard(Rectangle bounds, const ConnectionSettings& settings)
+    {
+        DrawRectangleRounded(bounds, 0.1f, 8, MenuCard);
+
+        const auto drawRow = [&](float offset,
+                                const char* label,
+                                const std::string& value)
+        {
+            const float rowY = bounds.y + offset;
+
+            UI::drawText(label,
+                bounds.x + 16.0f,
+                rowY + 3.0f,
+                14.0f,
+                MenuMuted
+            );
+
+            const Rectangle valueBounds{
+                bounds.x + 96.0f,
+                rowY,
+                bounds.width - 112.0f,
+                25.0f
+            };
+
+            UI::drawFittedText(
+                valueBounds,
+                value.empty() ? "(not set)" : value,
+                17.0f,
+                MenuText
+            );
         };
+
+        drawRow(13.0f, "PLAYER", settings.playerName);
+        drawRow(48.0f, "SERVER", settings.serverAddress);
+        drawRow(83.0f, "PORT", settings.port);
+    }
+
+    void drawMenuButtons(const MenuLayout& layout)
+    {
+        UI::drawButton(
+            layout.connectButton, "CONNECT", true, UI::greenButtonTheme()
+        );
+
+        UI::drawButton(
+            layout.settingsButton, "SETTINGS", true, UI::amberButtonTheme()
+        );
     }
 }
 
@@ -58,27 +115,19 @@ MenuScene::MenuScene(
 
 std::optional<SceneTransition> MenuScene::update()
 {
-    if (UI::isClicked(settingsButtonRectangle()))
-    {
-       return SceneTransition(SceneType::Settings, {});
-    }
+    const MenuLayout layout = makeMenuLayout(panelBounds());
 
-    if (UI::isClicked(connectButtonRectangle()))
+    if (UI::isClicked(layout.settingsButton))
+        return SceneTransition{SceneType::Settings, {}};
+
+    if (UI::isClicked(layout.connectButton))
     {
-        const auto port =
-            validateConnectionSettings(settings, errorMessage);
+        const auto port = validateConnectionSettings(settings, errorMessage);
 
         if (!port)
-        {
             return std::nullopt;
-        }
 
-        session.connect(
-            settings.serverAddress,
-            *port,
-            settings.playerName
-        );
-
+        session.connect(settings.serverAddress, *port, settings.playerName);
         return SceneTransition{SceneType::Connecting, {}};
     }
 
@@ -92,86 +141,17 @@ Rectangle MenuScene::panelBounds() const
 
 void MenuScene::drawContent(Rectangle panel) const
 {
-    const Color surface{42, 42, 42, 255};
-    const Color text{240, 240, 240, 255};
-    const Color muted{165, 165, 165, 255};
+    const MenuLayout layout = makeMenuLayout(panel);
 
-    UI::drawCenteredText(
-        Rectangle{
-            panel.x + 32.0f,
-            panel.y + 64.0f,
-            panel.width - 64.0f,
-            54.0f
-        },
-        "RAY BOMBER",
-        40,
-        text
-    );
+    UI::drawCenteredText(layout.title, "RAY BOMBER", 40, MenuText);
 
-    const Rectangle connectionCard{
-        panel.x + 32.0f,
-        panel.y + 176.0f,
-        panel.width - 64.0f,
-        122.0f
-    };
-
-    DrawRectangleRounded(connectionCard, 0.1f, 8, surface);
-
-    const auto drawSetting = [&](float offset,
-                                 const char* label,
-                                 const std::string& value)
-    {
-        UI::drawText(
-            label,
-            connectionCard.x + 16.0f,
-            connectionCard.y + offset + 3.0f,
-            14.0f,
-            muted
-        );
-
-        UI::drawFittedText(
-            Rectangle{
-                connectionCard.x + 96.0f,
-                connectionCard.y + offset,
-                connectionCard.width - 112.0f,
-                25.0f
-            },
-            value.empty() ? "(not set)" : value,
-            17.0f,
-            text
-        );
-    };
-
-    drawSetting(13.0f, "PLAYER", settings.playerName);
-    drawSetting(48.0f, "SERVER", settings.serverAddress);
-    drawSetting(83.0f, "PORT", settings.port);
-
-    UI::drawButton(
-        connectButtonRectangle(),
-        "CONNECT",
-        true,
-        UI::greenButtonTheme()
-    );
-
-    UI::drawButton(
-        settingsButtonRectangle(),
-        "SETTINGS",
-        true,
-        UI::amberButtonTheme()
-    );
+    drawConnectionCard(layout.connectionCard, settings);
+    drawMenuButtons(layout);
 
     if (!errorMessage.empty())
     {
         UI::drawFittedText(
-            Rectangle{
-                panel.x + 32.0f,
-                panel.y + 450.0f,
-                panel.width - 64.0f,
-                34.0f
-            },
-            errorMessage,
-            15.0f,
-            Color{239, 168, 107, 255}
+            layout.errorMessage, errorMessage, 15.0f, MenuError
         );
     }
 }
