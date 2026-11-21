@@ -24,6 +24,8 @@ public:
         Failed
     };
 
+    GameSession();
+
     void connect(
         const std::string& address,
         std::uint16_t port,
@@ -53,13 +55,33 @@ public:
 private:
     using Clock = std::chrono::steady_clock;
 
+    class SessionState;
+    class DisconnectedState;
+    class ConnectingState;
+    class JoiningState;
+    class JoinedState;
+    class PreparingMatchState;
+    class WaitingForMatchStartState;
+    class PlayingState;
+    class FinishedState;
+    class FailedState;
+
+    template<class NextState>
+    void enter();
+
+    const SessionState* currentState;
+    Clock::time_point stateEnteredAt{};
+
     void fail(std::string message);
     std::optional<std::uint64_t> takeGameplayRequestId();
+
+    void sendMove(Direction direction);
+    void sendPlaceBomb();
+    void sendReturnToLobby();
 
     Client client;
     Game game;
 
-    State state = State::Disconnected;
     std::string localName;
     std::string errorMessage;
     std::optional<std::uint64_t> preparingRoundId;
@@ -68,16 +90,11 @@ private:
     static constexpr std::chrono::seconds ConnectTimeout{10};
     static constexpr std::chrono::seconds JoinTimeout{10};
 
-    Clock::time_point connectStartedAt{};
-    Clock::time_point joinStartedAt{};
-
     std::optional<RoundResult> roundResult;
     std::optional<std::uint64_t> pendingReturnRequest;
 
     std::string noticeMessage;
 
-    Clock::time_point preparationStartedAt{};
-    Clock::time_point matchWaitStartedAt{};
     Clock::time_point returnRequestedAt{};
 
     static constexpr std::chrono::seconds PreparationTimeout{20};
