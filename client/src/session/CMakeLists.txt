@@ -3,6 +3,7 @@ add_library(game_session)
 target_sources(game_session
   PRIVATE
     GameSession.cpp
+    GameSessionStates.hpp
 
   PUBLIC
     FILE_SET HEADERS

@@ -1,9 +1,19 @@
 #include "GameSession.hpp"
+#include "GameSessionStates.hpp"
 #include "GameEvent.hpp"
 
 #include <utility>
 #include <exception>
-#include <limits>
+
+GameSession::GameSession()
+{
+    enter<DisconnectedState>();
+}
+
+GameSession::State GameSession::getState() const
+{
+    return currentState->id();
+}
 
 void GameSession::connect(
     const std::string& address,
@@ -16,8 +26,7 @@ void GameSession::connect(
     localName = std::move(playerName);
     game = Game{localName};
 
-    connectStartedAt = Clock::now();
-    state = State::Connecting;
+    enter<ConnectingState>();
 
     client.connect(address, port);
 }
@@ -29,7 +38,7 @@ void GameSession::disconnect()
     game = Game{};
     localName.clear();
     errorMessage.clear();
-    state = State::Disconnected;
+    enter<DisconnectedState>();
     nextRequestId = 1;
     preparingRoundId.reset();
     roundResult.reset();
@@ -41,52 +50,17 @@ void GameSession::update()
 {
     client.poll();
 
-    if (state == State::Disconnected ||
-        state == State::Failed)
-    {
+    if (getState() == State::Disconnected || getState() == State::Failed)
         return;
-    }
 
-    if (client.getConnectionState() ==
-        Client::ConnectionState::Failed)
+    if (client.getConnectionState() == Client::ConnectionState::Failed)
     {
         fail(client.getError());
         return;
     }
 
-    if (state == State::Connecting)
-    {
-        if (!client.isConnected())
-        {
-            if (Clock::now() - connectStartedAt >= ConnectTimeout)
-            {
-                fail("Connection timed out while connecting.");
-            }
-
-            return;
-        }
-
-        joinStartedAt = Clock::now();
-
-        client.startReceiving();
-        client.joinLobby(localName);
-
-        // Sending the request can fail immediately.
-        if (client.getConnectionState() ==
-            Client::ConnectionState::Failed)
-        {
-            fail(client.getError());
-            return;
-        }
-
-        state = State::Joining;
-    }
-
-    if (!client.isConnected())
-    {
-        fail("Server closed the connection.");
+    if(!currentState->beginFrame(*this))
         return;
-    }
 
     GameEvent event;
 
@@ -94,7 +68,7 @@ void GameSession::update()
     {
         if (const auto* preparation = std::get_if<MatchPreparationStarted>(&event))
         {
-            if (state != State::Joined || preparation->roundId == 0)
+            if (getState() != State::Joined || preparation->roundId == 0)
             {
                 fail("Received invalid match preparation.");
                 return;
@@ -104,16 +78,14 @@ void GameSession::update()
             pendingReturnRequest.reset();
             noticeMessage.clear();
 
-            preparationStartedAt = Clock::now();
-
             preparingRoundId = preparation->roundId;
-            state = State::PreparingMatch;
+            enter<PreparingMatchState>();
             continue;
         }
 
         if (const auto* setup = std::get_if<MatchSetupReceived>(&event))
         {
-            if (state != State::PreparingMatch || !preparingRoundId || setup->roundId != *preparingRoundId)
+            if (getState() != State::PreparingMatch || !preparingRoundId || setup->roundId != *preparingRoundId)
             {
                 fail("Received setup for an unexpected round.");
                 return;
@@ -142,14 +114,13 @@ void GameSession::update()
                 return;
             }
 
-            matchWaitStartedAt = Clock::now();
-            state = State::WaitingForMatchStart;
+            enter<WaitingForMatchStartState>();
             continue;
         }
 
         if (const auto* started = std::get_if<MatchStarted>(&event))
         {
-            if (state != State::WaitingForMatchStart ||
+            if (getState() != State::WaitingForMatchStart ||
                 !preparingRoundId ||
                 started->roundId != *preparingRoundId ||
                 started->roundId != game.getRoundId())
@@ -158,16 +129,10 @@ void GameSession::update()
                 return;
             }
 
-            if (std::holds_alternative<PlayerMoved>(event) &&
-                state != State::Playing)
-            {
-                continue;
-            }
-
             game.handleEvent(event);
 
             preparingRoundId.reset();
-            state = State::Playing;
+            enter<PlayingState>();
             continue;
         }
 
@@ -179,10 +144,10 @@ void GameSession::update()
                 continue;
 
             // Ignore a duplicate result for the finished round.
-            if (state == State::Finished)
+            if (getState() == State::Finished)
                 continue;
 
-            if (state != State::Playing)
+            if (getState() != State::Playing)
             {
                 fail("Received round results before gameplay started.");
                 return;
@@ -204,7 +169,7 @@ void GameSession::update()
             pendingReturnRequest.reset();
             noticeMessage.clear();
 
-            state = State::Finished;
+            enter<FinishedState>();
             continue;
         }
 
@@ -217,12 +182,12 @@ void GameSession::update()
                 continue;
 
             const bool isPreparing =
-                state == State::PreparingMatch ||
-                state == State::WaitingForMatchStart;
+                getState() == State::PreparingMatch ||
+                getState() == State::WaitingForMatchStart;
 
             if (reset->reason == LobbyResetReason::RoundFinished)
             {
-                if (state != State::Finished)
+                if (getState() != State::Finished)
                 {
                     fail("Received a finished-round reset in an invalid phase.");
                     return;
@@ -251,13 +216,13 @@ void GameSession::update()
             preparingRoundId.reset();
 
             nextRequestId = 1;
-            state = State::Joined;
+            enter<JoinedState>();
             continue;
         }
 
         if (const auto* rejected = std::get_if<ActionRejectedReceived>(&event))
         {
-            if (state == State::Finished &&
+            if (getState() == State::Finished &&
                 rejected->roundId == game.getRoundId() &&
                 pendingReturnRequest &&
                 rejected->requestId == *pendingReturnRequest)
@@ -273,97 +238,47 @@ void GameSession::update()
             std::holds_alternative<WorldSnapshotReceived>(event) ||
             std::holds_alternative<PlayerEliminatedReceived>(event);
 
-        if (isWorldEvent && state != State::Playing)
+        if (isWorldEvent && getState() != State::Playing)
             continue;
 
         if (std::holds_alternative<ActionRejectedReceived>(event) &&
-            state != State::Playing && state != State::Finished)
+            getState() != State::Playing && getState() != State::Finished)
             continue;
 
         game.handleEvent(event);
 
-        if (state == State::Joining && game.hasJoinedLobby())
+        if (getState() == State::Joining && game.hasJoinedLobby())
         {
-            state = State::Joined;
+            enter<JoinedState>();
         }
-        else if (state != State::Joining && !game.hasJoinedLobby())
+        else if (getState() != State::Joining && !game.hasJoinedLobby())
         {
             fail("You are no longer in the game.");
             return;
         }
     }
 
-    const auto now = Clock::now();
-
-    if (state == State::Joining &&
-        now - joinStartedAt >= JoinTimeout)
-    {
-        fail("Timed out waiting for the server to accept the lobby join.");
-        return;
-    }
-
-    if (state == State::PreparingMatch &&
-        now - preparationStartedAt >= PreparationTimeout)
-    {
-        fail("Timed out waiting for the server's match setup.");
-        return;
-    }
-
-    if (state == State::WaitingForMatchStart &&
-        now - matchWaitStartedAt >= MatchStartTimeout)
-    {
-        fail("Timed out waiting for the server to start the match.");
-        return;
-    }
-
-    if (state == State::Finished &&
-        pendingReturnRequest &&
-        now - returnRequestedAt >= LobbyResetTimeout)
-    {
-        fail("Timed out waiting for the server to return to the lobby.");
-        return;
-    }
+    currentState->checkTimeout(*this);
 }
 
 void GameSession::setReady(bool ready)
 {
-    if (state == State::Joined)
-    {
-        client.setReady(ready);
-    }
+    currentState->setReady(*this, ready);
 }
 
 void GameSession::move(Direction direction)
 {
-    const auto requestId = takeGameplayRequestId();
-    if (!requestId)
-        return;
-
-    client.move(direction, game.getRoundId(), *requestId);
+    currentState->move(*this, direction);
 }
 
 void GameSession::placeBomb()
 {
-    const auto requestId = takeGameplayRequestId();
-    if (!requestId)
-        return;
-
-    client.placeBomb(game.getRoundId(), *requestId);
+    currentState->placeBomb(*this);
 }
 
 void GameSession::requestGameStart()
 {
-    if (state != State::Joined || !game.isLocalPlayerLeader())
-    {
-        return;
-    }
-
-    client.requestGameStart();
-}
-
-GameSession::State GameSession::getState() const
-{
-    return state;
+    currentState->requestGameStart(*this);
 }
 
 const std::string& GameSession::getError() const
@@ -386,12 +301,12 @@ void GameSession::fail(std::string message)
     disconnect();
 
     errorMessage = std::move(message);
-    state = State::Failed;
+    enter<FailedState>();
 }
 
 std::optional<std::uint64_t> GameSession::takeGameplayRequestId()
 {
-    if (state != State::Playing || !client.isConnected())
+    if (!client.isConnected())
         return std::nullopt;
 
     const auto* player = game.getLocalPlayer();
@@ -430,8 +345,30 @@ bool GameSession::isWaitingForLobbyReset() const
 
 void GameSession::requestReturnToLobby()
 {
-    if (state != State::Finished ||
-        !client.isConnected() ||
+    currentState->requestReturnToLobby(*this);
+}
+
+void GameSession::sendMove(Direction direction)
+{
+    const auto requestId = takeGameplayRequestId();
+    if (!requestId)
+        return;
+
+    client.move(direction, game.getRoundId(), *requestId);
+}
+
+void GameSession::sendPlaceBomb()
+{
+    const auto requestId = takeGameplayRequestId();
+    if (!requestId)
+        return;
+
+    client.placeBomb(game.getRoundId(), *requestId);
+}
+
+void GameSession::sendReturnToLobby()
+{
+    if (!client.isConnected() ||
         !roundResult ||
         pendingReturnRequest ||
         !game.isLocalPlayerLeader())
@@ -446,7 +383,6 @@ void GameSession::requestReturnToLobby()
     }
 
     const auto requestId = nextRequestId++;
-
     pendingReturnRequest = requestId;
     returnRequestedAt = Clock::now();
     noticeMessage.clear();
