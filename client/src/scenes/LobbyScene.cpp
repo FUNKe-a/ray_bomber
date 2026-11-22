@@ -184,20 +184,15 @@ struct LobbyScene::Controls
             localReady ? UI::greenButtonTheme() : UI::amberButtonTheme()
         );
 
+        start.setVisible(game.isLocalPlayerLeader());
         start.setEnabled(canStartMatch(session));
-
-        if (!joined)
-            start.setLabel("PREPARING...");
-        else if (game.isLocalPlayerLeader())
-            start.setLabel("START ROUND");
-        else
-            start.setLabel("LEADER STARTS THE ROUND");
+        start.setLabel(joined ? "START ROUND" : "PREPARING...");
     }
 
     Action readAction()
     {
         requested = Action::None;
-        form.update();
+        form.update(&ready);
 
         if (IsKeyPressed(KEY_ESCAPE) || requested == Action::Disconnect)
             return Action::Disconnect;

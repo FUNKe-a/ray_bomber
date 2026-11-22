@@ -175,11 +175,27 @@ struct SettingsScene::Controls
     }
 };
 
+std::optional<SettingsField> SettingsScene::focusedSettingsField() const
+{
+    if (controls->form.hasFocus(controls->name))
+        return SettingsField::PlayerName;
+
+    if (controls->form.hasFocus(controls->address))
+        return SettingsField::ServerAddress;
+
+    if (controls->form.hasFocus(controls->port))
+        return SettingsField::Port;
+
+    return std::nullopt;
+}
+
 SettingsScene::~SettingsScene() = default;
 
 std::optional<SceneTransition> SettingsScene::update()
 {
     updateControlBounds();
+
+    const auto previousField = focusedSettingsField();
 
     const bool controlDown =
         IsKeyDown(KEY_LEFT_CONTROL) ||
@@ -202,6 +218,17 @@ std::optional<SceneTransition> SettingsScene::update()
         return SceneTransition{SceneType::Menu, {}};
 
     updateControlAvailability();
+
+    const auto currentField = focusedSettingsField();
+
+    if (previousField != currentField)
+    {
+        if (previousField)
+            showFieldError[static_cast<std::size_t>(*previousField)] = true;
+
+        if (currentField)
+            showFieldError[static_cast<std::size_t>(*currentField)] = false;
+    }
 
     return std::nullopt;
 }
@@ -228,6 +255,42 @@ void SettingsScene::drawContent(Rectangle panel) const
     drawFieldLabel(controls->port.bounds(), "PORT");
     
     controls->form.draw();
+
+    const Color errorColor{239, 168, 107, 255};
+    const char* firstError = nullptr;
+
+    const auto drawFieldError = [&](SettingsField field, const UI::LineInput& input)
+    {
+        if (!showFieldError[static_cast<std::size_t>(field)])
+            return;
+
+        if (const char* message = settingsFieldError(settings, field))
+        {
+            DrawRectangleLinesEx(input.bounds(), 2.0f, errorColor);
+
+            if (!firstError)
+                firstError = message;
+        }
+    };
+
+    drawFieldError(SettingsField::PlayerName, controls->name);
+    drawFieldError(SettingsField::ServerAddress, controls->address);
+    drawFieldError(SettingsField::Port, controls->port);
+
+    if (firstError){
+        UI::drawCenteredText(
+            Rectangle{
+                panel.x + 32.0f,
+                panel.y + panel.height - 28.0f,
+                panel.width - 64.0f,
+                24.0f
+            },
+            firstError,
+            14,
+            firstError ? errorColor : UI::DefaultTheme.mutedText
+
+        );
+    }
 }
 
 void SettingsScene::updateControlBounds()

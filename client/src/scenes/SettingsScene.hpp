@@ -6,6 +6,7 @@
 
 #include <optional>
 #include <memory>
+#include <array>
 
 class SettingsScene final : public PanelScene
 {
@@ -31,4 +32,7 @@ private:
     std::unique_ptr<Controls> controls;
     SettingsCommandHistory commandHistory;
     bool backRequested = false;
+
+    std::array<bool, 3> showFieldError{};
+    std::optional<SettingsField> focusedSettingsField() const;
 };

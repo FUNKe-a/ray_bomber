@@ -105,19 +105,23 @@ namespace UI
         std::string_view text,
         bool enabled,
         const Theme& theme,
-        bool focused
+        bool focused,
+        bool pressed
     )
     {
         Color background = theme.disabled;
 
         if (enabled)
         {
-            background = isHovered(bounds)
-                ? theme.buttonHovered
-                : theme.button;
+            if (pressed)
+                background = theme.buttonPressed;
+            else if (isHovered(bounds))
+                background = theme.buttonHovered;
+            else
+                background = theme.button;
         }
 
-        DrawRectangleRec(bounds, background);
+        DrawRectangleRounded(bounds, 0.3, 8, background);
 
         drawCenteredText(
             bounds,
@@ -127,7 +131,7 @@ namespace UI
         );
 
         if (enabled && focused)
-            DrawRectangleLinesEx(bounds, theme.borderWidth, theme.focus);
+            DrawRectangleRoundedLinesEx(bounds, 0.3, 8, theme.borderWidth, theme.focus);
     }
 
     void drawTextField(

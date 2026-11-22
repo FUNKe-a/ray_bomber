@@ -28,15 +28,19 @@ namespace UI
 
         void setEnabled(bool enabled) { enabled_ = enabled; }
         bool isEnabled() const { return enabled_; }
+        void setVisible(bool visible) { visible_ = visible; }
+        bool isVisible() const { return visible_; }
 
         bool contains(Vector2 point) const;
+        bool canReceiveInput() const;
 
-        virtual void draw(bool focused) const = 0;
+        virtual void draw(bool focused, bool pressed) const = 0;
         virtual void handleInput(const ControlInput& input, bool clicked) = 0;
 
     private:
         Rectangle bounds_{};
         bool enabled_ = true;
+        bool visible_ = true;
     };
 
     class Button final : public Control
@@ -46,7 +50,7 @@ namespace UI
 
         Button(std::string label, Theme theme, Action onActivated);
 
-        void draw(bool focused) const override;
+        void draw(bool focused, bool pressed) const override;
         void handleInput(const ControlInput& input, bool clicked) override;
         void setLabel(std::string_view label);
         void setTheme(const Theme& theme);
@@ -71,7 +75,7 @@ namespace UI
             RequestEdit requestEdit
         );
 
-        void draw(bool focused) const override;
+        void draw(bool focused, bool pressed) const override;
         void handleInput(const ControlInput& input, bool clicked) override;
 
     private:
@@ -89,7 +93,8 @@ namespace UI
         explicit Form(std::initializer_list<ControlRef> controls);
 
         void focus(Control& control);
-        void update();
+        void update(Control* preferredFallback = nullptr);
+        bool hasFocus(const Control& control) const;
         void draw() const;
 
     private:
@@ -97,5 +102,6 @@ namespace UI
 
         std::vector<ControlRef> controls_;
         Control* focused_ = nullptr;
+        Control* pressed_ = nullptr;
     };
 }

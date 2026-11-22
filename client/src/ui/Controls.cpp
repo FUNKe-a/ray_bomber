@@ -60,6 +60,11 @@ namespace UI
         return CheckCollisionPointRec(point, bounds());
     }
 
+    bool Control::canReceiveInput() const
+    {
+        return visible_ && enabled_;
+    }
+
     Button::Button(std::string label, Theme theme, Action onActivated)
         : label_(std::move(label)),
           theme_(theme),
@@ -67,9 +72,9 @@ namespace UI
     {
     }
 
-    void Button::draw(bool focused) const
+    void Button::draw(bool focused, bool pressed) const
     {
-        drawButton(bounds(), label_, isEnabled(), theme_, focused);
+        drawButton(bounds(), label_, isEnabled(), theme_, focused, pressed);
     }
 
     void Button::handleInput(const ControlInput& input, bool clicked)
@@ -102,7 +107,7 @@ namespace UI
     {
     }
 
-    void LineInput::draw(bool focused) const
+    void LineInput::draw(bool focused, bool /*pressed*/) const
     {
         drawTextField(bounds(), readValue_(), focused && isEnabled(), darkTheme());
     }
@@ -143,7 +148,7 @@ namespace UI
     {
         for (Control& member : controls_)
         {
-            if (&member == &control && member.isEnabled())
+            if (&member == &control && member.canReceiveInput())
             {
                 focused_ = &member;
                 return;
@@ -180,7 +185,7 @@ namespace UI
                 index = (index + 1) % count;
 
             Control& candidate = controls_[index].get();
-            if (candidate.isEnabled())
+            if (candidate.canReceiveInput())
             {
                 focused_ = &candidate;
                 return;
@@ -190,12 +195,27 @@ namespace UI
         focused_ = nullptr;
     }
 
-    void Form::update()
+    bool Form::hasFocus(const Control& control) const
+    {
+        return focused_ == &control && control.canReceiveInput();
+    }
+
+    void Form::update(Control* preferredFallback)
     {
         const ControlInput input = readControlInput();
+        const Vector2 mouse = GetMousePosition();
+
+        const bool mousePressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+        const bool mouseReleased = IsMouseButtonReleased(MOUSE_BUTTON_LEFT);
+        const bool mouseDown = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+
+        // A scene shortcut may have handled the frame in which the mouse was released.
+        if (pressed_ && (!pressed_->isEnabled() || (!mouseDown && !mouseReleased)))
+            pressed_ = nullptr;
 
         if (!input.controlDown && IsKeyPressed(KEY_TAB))
         {
+            pressed_ = nullptr;
             const bool backwards =
                 IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
 
@@ -203,40 +223,72 @@ namespace UI
             return;
         }
 
-        const bool hasEnabledFocus = focused_ && focused_->isEnabled();
+        const bool hadEnabledFocus = focused_ && focused_->canReceiveInput();
 
-        if (!hasEnabledFocus)
-            moveFocus(false);
-
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+        if (!hadEnabledFocus)
         {
-            const Vector2 mouse = GetMousePosition();
+            if (preferredFallback)
+                focus(*preferredFallback);  // Already checks membership and enabled state.
 
-            // The last drawn control is on top if bounds overlap.
+            if (!focused_ || !focused_->canReceiveInput())
+                moveFocus(false);
+        }
+
+        if (mousePressed)
+        {
+            pressed_ = nullptr;
+
             for (auto it = controls_.rbegin(); it != controls_.rend(); ++it)
             {
                 Control& control = it->get();
 
-                if (!control.contains(mouse))
+                if (!control.isVisible() || !control.contains(mouse))
                     continue;
 
                 if (control.isEnabled())
                 {
                     focused_ = &control;
-                    control.handleInput(input, true);
+                    pressed_ = &control;
                 }
 
+                break;
+            }
+        }
+
+        if (mouseReleased)
+        {
+            Control* released = pressed_;
+            pressed_ = nullptr;
+
+            if (released && released == focused_ &&
+                released->isEnabled() && released->contains(mouse))
+            {
+                released->handleInput(ControlInput{}, true);
                 return;
             }
         }
 
-        if (focused_ && hasEnabledFocus)
+        if (mousePressed || pressed_)
+            return;
+
+        if (focused_ && hadEnabledFocus)
             focused_->handleInput(input, false);
     }
 
     void Form::draw() const
     {
+        const Vector2 mouse = GetMousePosition();
+
         for (const Control& control : controls_)
-            control.draw(&control == focused_ && control.isEnabled());
+        {
+            if(!control.isVisible())
+                continue;
+
+            const bool focused = control.isEnabled() && &control == focused_;
+            const bool pressed = control.isEnabled() && &control == pressed_ &&
+                                control.contains(mouse);
+
+            control.draw(focused, pressed);
+        }
     }
 }
