@@ -14,6 +14,7 @@ namespace UI
 
         Color button = DARKBLUE;
         Color buttonHovered = BLUE;
+        Color buttonPressed = DARKGRAY;
         Color buttonText = WHITE;
 
         Color border = GRAY;
@@ -41,7 +42,9 @@ namespace UI
         Rectangle bounds,
         std::string_view text,
         bool enabled = true,
-        const Theme& theme = DefaultTheme
+        const Theme& theme = DefaultTheme,
+        bool focused = false,
+        bool pressed = false
     );
 
     void drawTextField(
@@ -89,6 +92,7 @@ namespace UI
 
         theme.button = Color{62, 62, 62, 255};
         theme.buttonHovered = Color{82, 82, 82, 255};
+        theme.buttonPressed = Color{48, 48, 48, 255};
         theme.buttonText = theme.text;
 
         theme.border = Color{70, 70, 70, 255};
@@ -105,6 +109,7 @@ namespace UI
 
         theme.button = Color{42, 115, 77, 255};
         theme.buttonHovered = Color{52, 140, 94, 255};
+        theme.buttonPressed = Color{32, 90, 59, 255};
 
         return theme;
     }
@@ -115,6 +120,7 @@ namespace UI
 
         theme.button = Color{180, 127, 48, 255};
         theme.buttonHovered = Color{207, 149, 61, 255};
+        theme.buttonPressed = Color{145, 100, 36, 255};
         theme.buttonText = Color{255, 248, 233, 255};
 
         return theme;

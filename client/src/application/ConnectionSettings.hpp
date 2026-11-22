@@ -68,41 +68,72 @@ public:
     }
 };
 
+inline std::optional<std::uint16_t> parseConnectionPort(const std::string& text)
+{
+    if (text.empty())
+        return std::nullopt;
+
+    unsigned int port = 0;
+    const char* begin = text.data();
+    const char* end = begin + text.size();
+    const auto result = std::from_chars(begin, end, port);
+
+    if (result.ec != std::errc{} || result.ptr != end ||
+        port == 0 || port > 65535)
+    {
+        return std::nullopt;
+    }
+
+    return static_cast<std::uint16_t>(port);
+}
+
+inline const char* settingsFieldError(
+    const ConnectionSettings& settings,
+    SettingsField field
+)
+{
+    const auto& value = settings.value(field);
+
+    switch (field)
+    {
+        case SettingsField::PlayerName:
+            if (value.find_first_not_of(' ') == std::string::npos)
+                return "Enter a player name.";
+            break;
+
+        case SettingsField::ServerAddress:
+            if (value.empty())
+                return "Enter a server address.";
+            break;
+
+        case SettingsField::Port:
+            if (!parseConnectionPort(value))
+                return "Port must be between 1 and 65535.";
+            break;
+    }
+
+    return nullptr;
+}
+
 // returns the converted port when validation succeeds, or std::nullopt with an error message.
 inline std::optional<std::uint16_t> validateConnectionSettings(
     const ConnectionSettings& settings,
     std::string& error
 )
 {
-    if (settings.value(SettingsField::PlayerName).empty() ||
-        settings.value(SettingsField::PlayerName).find_first_not_of(' ') == std::string::npos)
+    for (const SettingsField field : {
+             SettingsField::PlayerName,
+             SettingsField::ServerAddress,
+             SettingsField::Port
+         })
     {
-        error = "Enter a player name.";
-        return std::nullopt;
-    }
-
-    if (settings.value(SettingsField::ServerAddress).empty())
-    {
-        error = "Enter a server address.";
-        return std::nullopt;
-    }
-
-    unsigned int port = 0;
-
-    const char* begin = settings.value(SettingsField::Port).data();
-    const char* end = begin + settings.value(SettingsField::Port).size();
-
-    const auto result = std::from_chars(begin, end, port);
-
-    if (result.ec != std::errc{} ||
-        result.ptr != end ||
-        port < 1 ||
-        port > 65535)
-    {
-        error = "Port must be between 1 and 65535.";
-        return std::nullopt;
+        if (const char* message = settingsFieldError(settings, field))
+        {
+            error = message;
+            return std::nullopt;
+        }
     }
 
     error.clear();
-    return static_cast<std::uint16_t>(port);
+    return parseConnectionPort(settings.value(SettingsField::Port));
 }

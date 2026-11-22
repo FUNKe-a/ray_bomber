@@ -3,6 +3,7 @@
 #include "PanelScene.hpp"
 
 #include <string>
+#include <memory>
 
 class ConnectionSettings;
 class GameSession;
@@ -16,6 +17,8 @@ public:
         std::string errorMessage = ""
     );
 
+    ~MenuScene() override;
+
     std::optional<SceneTransition> update() override;
 
 private:
@@ -25,4 +28,11 @@ private:
     GameSession& session;
     ConnectionSettings& settings;
     std::string errorMessage;
+
+    struct Controls;
+
+    void requestConnect();
+
+    std::optional<SceneTransition> pendingTransition;
+    std::unique_ptr<Controls> controls;
 };

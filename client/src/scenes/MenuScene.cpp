@@ -2,6 +2,7 @@
 
 #include "ConnectionSettings.hpp"
 #include "GameSession.hpp"
+#include "Controls.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
@@ -12,7 +13,7 @@ namespace
 {
     Rectangle menuRectangle()
     {
-        constexpr float width = 460.0f;
+        constexpr float width = 500.0f;
         constexpr float height = 384.0f;
 
         return {
@@ -89,18 +90,31 @@ namespace
         drawRow(48.0f, "SERVER", settings.value(SettingsField::ServerAddress));
         drawRow(83.0f, "PORT", settings.value(SettingsField::Port));
     }
-
-    void drawMenuButtons(const MenuLayout& layout)
-    {
-        UI::drawButton(
-            layout.connectButton, "CONNECT", true, UI::greenButtonTheme()
-        );
-
-        UI::drawButton(
-            layout.settingsButton, "SETTINGS", true, UI::amberButtonTheme()
-        );
-    }
 }
+
+struct MenuScene::Controls
+{
+    MenuLayout layout;
+    UI::Button connect;
+    UI::Button settings;
+    UI::Form form;
+
+    Controls(MenuScene& scene, Rectangle panel)
+        : layout(makeMenuLayout(panel)),
+          connect("CONNECT", UI::greenButtonTheme(),
+                    [&scene] { scene.requestConnect(); }),
+          settings("SETTINGS", UI::amberButtonTheme(),
+                    [&scene] { scene.pendingTransition =
+                        SceneTransition{SceneType::Settings, {}};
+                    }),
+          form{connect, settings}
+    {
+        connect.setBounds(layout.connectButton);
+        settings.setBounds(layout.settingsButton);
+    }
+};
+
+MenuScene::~MenuScene() = default;
 
 MenuScene::MenuScene(
     GameSession& session,
@@ -111,31 +125,29 @@ MenuScene::MenuScene(
       settings(settings),
       errorMessage(std::move(errorMessage))
 {
+    controls = std::make_unique<Controls>(*this, panelBounds());
 }
 
 std::optional<SceneTransition> MenuScene::update()
 {
-    const MenuLayout layout = makeMenuLayout(panelBounds());
+    controls->form.update();
+    return std::exchange(pendingTransition, std::nullopt);
+}
 
-    if (UI::isClicked(layout.settingsButton))
-        return SceneTransition{SceneType::Settings, {}};
+void MenuScene::requestConnect()
+{
+    const auto port = validateConnectionSettings(settings, errorMessage);
 
-    if (UI::isClicked(layout.connectButton))
-    {
-        const auto port = validateConnectionSettings(settings, errorMessage);
+    if (!port)
+        return;
 
-        if (!port)
-            return std::nullopt;
+    session.connect(
+        settings.value(SettingsField::ServerAddress),
+        *port,
+        settings.value(SettingsField::PlayerName)
+    );
 
-        session.connect(
-            settings.value(SettingsField::ServerAddress), 
-            *port, 
-            settings.value(SettingsField::PlayerName));
-
-        return SceneTransition{SceneType::Connecting, {}};
-    }
-
-    return std::nullopt;
+    pendingTransition = SceneTransition{SceneType::Connecting, {}};
 }
 
 Rectangle MenuScene::panelBounds() const
@@ -143,19 +155,19 @@ Rectangle MenuScene::panelBounds() const
     return menuRectangle();
 }
 
-void MenuScene::drawContent(Rectangle panel) const
+void MenuScene::drawContent(Rectangle) const
 {
-    const MenuLayout layout = makeMenuLayout(panel);
+    const auto& layout = controls->layout;
 
     UI::drawCenteredText(layout.title, "RAY BOMBER", 40, MenuText);
 
     drawConnectionCard(layout.connectionCard, settings);
-    drawMenuButtons(layout);
+    controls->form.draw();
 
     if (!errorMessage.empty())
     {
         UI::drawFittedText(
-            layout.errorMessage, errorMessage, 15.0f, MenuError
+            layout.errorMessage, errorMessage, 16.0f, MenuError
         );
     }
 }
