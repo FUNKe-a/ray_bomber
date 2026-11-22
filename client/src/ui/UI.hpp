@@ -41,7 +41,8 @@ namespace UI
         Rectangle bounds,
         std::string_view text,
         bool enabled = true,
-        const Theme& theme = DefaultTheme
+        const Theme& theme = DefaultTheme,
+        bool focused = false
     );
 
     void drawTextField(

@@ -104,7 +104,8 @@ namespace UI
         Rectangle bounds,
         std::string_view text,
         bool enabled,
-        const Theme& theme
+        const Theme& theme,
+        bool focused
     )
     {
         Color background = theme.disabled;
@@ -124,6 +125,9 @@ namespace UI
             theme.fontSize,
             theme.buttonText
         );
+
+        if (enabled && focused)
+            DrawRectangleLinesEx(bounds, theme.borderWidth, theme.focus);
     }
 
     void drawTextField(

@@ -4,10 +4,14 @@
 #include "SettingsCommand.hpp"
 #include "ConnectionSettings.hpp"
 
+#include <optional>
+#include <memory>
+
 class SettingsScene final : public PanelScene
 {
 public:
     SettingsScene(ConnectionSettings& settings);
+    ~SettingsScene() override;
 
     std::optional<SceneTransition> update() override;
 
@@ -15,11 +19,15 @@ private:
     Rectangle panelBounds() const override;
     void drawContent(Rectangle panel) const override;
 
-    void handleTextInput(bool controlDown);
+    void updateControlBounds();
+    void updateControlAvailability();
     void undoLastEdit();
+    void restoreOpeningSettings();
 
     ConnectionSettings& settings;
     const ConnectionSettings::Memento openingSettings;
-    SettingsField activeField = SettingsField::PlayerName;
+    struct Controls;
+    std::unique_ptr<Controls> controls;
     SettingsCommandHistory commandHistory;
+    bool backRequested = false;
 };

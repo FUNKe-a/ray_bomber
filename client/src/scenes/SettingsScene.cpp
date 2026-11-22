@@ -2,6 +2,7 @@
 
 #include "ConnectionSettings.hpp"
 #include "SceneFactory.hpp"
+#include "Controls.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
@@ -9,9 +10,6 @@
 #include <string>
 #include <memory>
 #include <utility>
-#include <cctype>
-#include <algorithm>
-#include <array>
 
 namespace
 {
@@ -72,27 +70,6 @@ namespace
         return layout;
     }
 
-    SettingsField nextSettingsField(SettingsField current, bool backwards)
-    {
-        constexpr std::array order{
-            SettingsField::PlayerName,
-            SettingsField::ServerAddress,
-            SettingsField::Port
-        };
-
-        const auto it = std::find(order.begin(), order.end(), current);
-
-        if (it == order.end())
-            return order.front();
-
-        const auto index = static_cast<std::size_t>(it - order.begin());
-
-        if (backwards)
-            return index == 0 ? order.back() : order[index - 1];
-
-        return order[(index + 1) % order.size()];
-    }
-
     void drawFieldLabel(Rectangle bounds, const char* text)
     {
         UI::drawText(
@@ -102,56 +79,6 @@ namespace
             14.0f,
             Color{165, 165, 165, 255}
         );
-    }
-
-    void erasePreviousWord(std::string & text)
-    {
-        while(!text.empty() && text.back() == ' ')
-            text.pop_back();
-
-        if (text.empty())
-            return;
-        
-        const auto isWordCharacter = [](char ch){
-            return std::isalnum(static_cast<unsigned char>(ch)) != 0 || ch == '_';
-        };
-
-        const bool deletingWord = isWordCharacter(text.back());
-
-        do text.pop_back();
-        while (
-            !text.empty() && 
-            text.back() != ' ' && 
-            isWordCharacter(text.back()) == deletingWord
-        );
-    }
-
-    enum class DeleteAction
-    {
-        None, Character, PreviousWord
-    };
-
-    struct TextEdit
-    {
-        std::string typed;
-        DeleteAction deletion = DeleteAction::None;
-    };
-
-    TextEdit readTextEdit(bool controlDown)
-    {
-        TextEdit edit;
-
-        for (int ch = GetCharPressed(); ch > 0; ch = GetCharPressed()){
-            if(!controlDown && ch >= 32 && ch <= 126)
-                edit.typed.push_back(static_cast<char>(ch));
-        }
-
-        if(IsKeyPressed(KEY_BACKSPACE))
-            edit.deletion = controlDown 
-                ? DeleteAction::PreviousWord 
-                : DeleteAction::Character;
-        
-        return edit;
     }
 
     bool isAddressCharacter(char ch)
@@ -178,141 +105,105 @@ namespace
         {
             // Drain queued characters for this frame.
         }
-    }
+    } 
 
-    struct FieldRules
+    UI::LineInput makeSettingsInput(
+        ConnectionSettings& settings,
+        SettingsCommandHistory& history,
+        SettingsField field,
+        std::size_t maxLength,
+        UI::LineInput::AcceptCharacter accepts
+    )
     {
-        std::size_t maxLength;
-        bool (*accepts)(char);
-    };
-
-    std::string applyTextEdit(std::string value, const TextEdit& edit, FieldRules rules)
-    {
-        for (char ch : edit.typed){
-            if(value.size() < rules.maxLength && rules.accepts(ch))
-                value.push_back(ch);
-        }
-
-        switch (edit.deletion){
-            case DeleteAction::Character:
-                if(!value.empty()) value.pop_back();
-                break;
-            case DeleteAction::PreviousWord:
-                erasePreviousWord(value);
-                break;
-            case DeleteAction::None:
-                break;
-        }
-
-        return value;
+        return UI::LineInput{
+            maxLength,
+            accepts,
+            [&settings, field]() -> const std::string&
+            {
+                return settings.value(field);
+            },
+            [&settings, &history, field](std::string edited)
+            {
+                history.execute(
+                    field,
+                    std::make_unique<ChangeTextCommand>(
+                        settings, field, std::move(edited)
+                    )
+                );
+            }
+        };
     }
-    
 }
 
 SettingsScene::SettingsScene(ConnectionSettings& settings)
-    : settings(settings), openingSettings(settings.save())
+    : settings(settings),
+      openingSettings(settings.save()),
+      controls(std::make_unique<Controls>(*this))
 {
+    updateControlBounds();
+    updateControlAvailability();
 }
+
+struct SettingsScene::Controls
+{
+    UI::LineInput name;
+    UI::LineInput address;
+    UI::LineInput port;
+    UI::Button undo;
+    UI::Button restore;
+    UI::Button back;
+    UI::Form form;
+
+    explicit Controls(SettingsScene& scene)
+        : name(makeSettingsInput(
+              scene.settings, scene.commandHistory,
+              SettingsField::PlayerName, 32, isNameCharacter)),
+          address(makeSettingsInput(
+              scene.settings, scene.commandHistory,
+              SettingsField::ServerAddress, 255, isAddressCharacter)),
+          port(makeSettingsInput(
+              scene.settings, scene.commandHistory,
+              SettingsField::Port, 5, isPortCharacter)),
+          undo("UNDO", UI::amberButtonTheme(),
+               [&scene] { scene.undoLastEdit(); }),
+          restore("RESTORE", UI::darkTheme(),
+                  [&scene] { scene.restoreOpeningSettings(); }),
+          back("BACK TO MENU", UI::greenButtonTheme(),
+               [&scene] { scene.backRequested = true; }),
+          form{name, address, port, undo, restore, back}
+    {
+    }
+};
+
+SettingsScene::~SettingsScene() = default;
 
 std::optional<SceneTransition> SettingsScene::update()
 {
-    const SettingsLayout layout = makeSettingsLayout(panelBounds());
-
-    if (UI::isClicked(layout.backButton) ||
-        IsKeyPressed(KEY_ESCAPE))
-    {
+    if (IsKeyPressed(KEY_ESCAPE))
         return SceneTransition{SceneType::Menu, {}};
-    }
+
+    updateControlBounds();
 
     const bool controlDown =
         IsKeyDown(KEY_LEFT_CONTROL) ||
         IsKeyDown(KEY_RIGHT_CONTROL);
 
-    const bool undoShortcut =
-        controlDown && IsKeyPressed(KEY_Z);
-
-    if (undoShortcut ||
-        UI::isClicked(
-            layout.undoButton,
-            commandHistory.canUndo()
-        ))
+    if (controlDown && IsKeyPressed(KEY_Z))
     {
         discardTextInput();
         undoLastEdit();
-        return std::nullopt;
     }
-
-    if (UI::isClicked(layout.restoreButton, settings.differsFrom(openingSettings)))
+    else
     {
-        discardTextInput();
-        settings.restore(openingSettings);
-        commandHistory.clear();
-        return std::nullopt;
+        controls->form.update();
     }
 
-    if (UI::isClicked(layout.addressField))
-        activeField = SettingsField::ServerAddress;
-    else if (UI::isClicked(layout.portField))
-        activeField = SettingsField::Port;
-    else if (UI::isClicked(layout.nameField))
-        activeField = SettingsField::PlayerName;
-    else if (!controlDown && IsKeyPressed(KEY_TAB))
-    {
-        const bool backwards = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
+    updateControlAvailability();
 
-        activeField = nextSettingsField(activeField, backwards);
-    }
+    if (backRequested)
+        SceneTransition{SceneType::Menu, {}};
 
-    handleTextInput(controlDown);
     return std::nullopt;
-}
-
-void SettingsScene::handleTextInput(bool controlDown)
-{
-    const TextEdit edit = readTextEdit(controlDown);
-
-    if(edit.typed.empty() && edit.deletion == DeleteAction::None)
-        return;
-
-    const auto editField = [&](FieldRules rules)
-    {
-        const auto& current = settings.value(activeField);
-        std::string updated = applyTextEdit(current, edit, rules);
-
-        if(updated == current)
-            return;
-        
-        commandHistory.execute(
-            activeField,
-            std::make_unique<ChangeTextCommand>(
-                settings, activeField, std::move(updated)
-            )
-        );
-    };
-
-    switch (activeField)
-    {
-        case SettingsField::PlayerName:
-            editField({32, isNameCharacter});
-            break;
-
-        case SettingsField::ServerAddress:
-            editField({255, isAddressCharacter});
-            break;
-
-        case SettingsField::Port:
-            editField({5, isPortCharacter});
-            break;
-    }
-}
-
-void SettingsScene::undoLastEdit()
-{
-    if (const auto restoredField = commandHistory.undo())
-    {
-        activeField = *restoredField;
-        TraceLog(LOG_INFO, "SETTINGS COMMAND: undo");
-    }
 }
 
 Rectangle SettingsScene::panelBounds() const
@@ -322,8 +213,6 @@ Rectangle SettingsScene::panelBounds() const
 
 void SettingsScene::drawContent(Rectangle panel) const
 {
-    const SettingsLayout layout = makeSettingsLayout(panel);
-
     const Color text{240, 240, 240, 255};
 
     UI::drawText(
@@ -334,50 +223,56 @@ void SettingsScene::drawContent(Rectangle panel) const
         text
     );
 
-    const auto theme = UI::darkTheme();
+    drawFieldLabel(controls->name.bounds(), "PLAYER NAME");
+    drawFieldLabel(controls->address.bounds(), "SERVER NAME");
+    drawFieldLabel(controls->port.bounds(), "PORT");
+    
+    controls->form.draw();
+}
 
-    drawFieldLabel(layout.nameField, "PLAYER NAME");
-    UI::drawTextField(
-        layout.nameField,
-        settings.value(SettingsField::PlayerName),
-        activeField == SettingsField::PlayerName,
-        theme
-    );
+void SettingsScene::updateControlBounds()
+{
+    const auto layout = makeSettingsLayout(panelBounds());
 
-    drawFieldLabel(layout.addressField, "SERVER ADDRESS");
-    UI::drawTextField(
-        layout.addressField,
-        settings.value(SettingsField::ServerAddress),
-        activeField == SettingsField::ServerAddress,
-        theme
-    );
+    controls->name.setBounds(layout.nameField);
+    controls->address.setBounds(layout.addressField);
+    controls->port.setBounds(layout.portField);
+    controls->undo.setBounds(layout.undoButton);
+    controls->restore.setBounds(layout.restoreButton);
+    controls->back.setBounds(layout.backButton);
+}
 
-    drawFieldLabel(layout.portField, "PORT");
-    UI::drawTextField(
-        layout.portField,
-        settings.value(SettingsField::Port),
-        activeField == SettingsField::Port,
-        theme
-    );
+void SettingsScene::updateControlAvailability()
+{
+    controls->undo.setEnabled(commandHistory.canUndo());
+    controls->restore.setEnabled(settings.differsFrom(openingSettings));
+}
 
-    UI::drawButton(
-        layout.undoButton,
-        "UNDO",
-        commandHistory.canUndo(),
-        UI::amberButtonTheme()
-    );
+void SettingsScene::undoLastEdit()
+{
+    const auto field = commandHistory.undo();
+    if (!field)
+        return;
 
-    UI::drawButton(
-        layout.restoreButton,
-        "RESTORE",
-        settings.differsFrom(openingSettings),
-        UI::darkTheme()
-    );
+    switch (*field)
+    {
+        case SettingsField::PlayerName:
+            controls->form.focus(controls->name);
+            break;
 
-    UI::drawButton(
-        layout.backButton,
-        "BACK TO MENU",
-        true,
-        UI::greenButtonTheme()
-    );
+        case SettingsField::ServerAddress:
+            controls->form.focus(controls->address);
+            break;
+
+        case SettingsField::Port:
+            controls->form.focus(controls->port);
+            break;
+    }
+}
+
+void SettingsScene::restoreOpeningSettings()
+{
+    settings.restore(openingSettings);
+    commandHistory.clear();
+    controls->form.focus(controls->name);
 }
