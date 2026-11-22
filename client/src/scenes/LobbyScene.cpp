@@ -1,6 +1,7 @@
 #include "LobbyScene.hpp"
 
 #include "GameSession.hpp"
+#include "Controls.hpp"
 #include "GameTypes.hpp"
 #include "UI.hpp"
 
@@ -138,10 +139,80 @@ namespace
     }
 }
 
-LobbyScene::LobbyScene(GameSession& session)
-    : session(session)
+struct LobbyScene::Controls
 {
+    enum class Action
+    {
+        None,
+        ToggleReady,
+        StartRound,
+        Disconnect
+    };
+
+    Action requested = Action::None;
+
+    UI::Button ready;
+    UI::Button start;
+    UI::Button disconnect;
+    UI::Form form;
+
+    Controls()
+        : ready("READY UP", UI::greenButtonTheme(),
+                [this] { requested = Action::ToggleReady; }),
+          start("START ROUND", buttonTheme(true),
+                [this] { requested = Action::StartRound; }),
+          disconnect("DISCONNECT  [Esc]", buttonTheme(false),
+                     [this] { requested = Action::Disconnect; }),
+          form{ready, start, disconnect}
+    {
+        ready.setBounds(readyButtonRectangle());
+        start.setBounds(startButtonRectangle());
+        disconnect.setBounds(disconnectButtonRectangle());
+    }
+
+    void refresh(const GameSession& session)
+    {
+        const auto& game = session.getGame();
+        const auto* localPlayer = game.getLocalPlayer();
+
+        const bool joined = session.getState() == GameSession::State::Joined;
+        const bool localReady = localPlayer && localPlayer->isReady();
+
+        ready.setEnabled(joined && localPlayer != nullptr);
+        ready.setLabel(localReady ? "CANCEL READY" : "READY UP");
+        ready.setTheme(
+            localReady ? UI::greenButtonTheme() : UI::amberButtonTheme()
+        );
+
+        start.setEnabled(canStartMatch(session));
+
+        if (!joined)
+            start.setLabel("PREPARING...");
+        else if (game.isLocalPlayerLeader())
+            start.setLabel("START ROUND");
+        else
+            start.setLabel("LEADER STARTS THE ROUND");
+    }
+
+    Action readAction()
+    {
+        requested = Action::None;
+        form.update();
+
+        if (IsKeyPressed(KEY_ESCAPE) || requested == Action::Disconnect)
+            return Action::Disconnect;
+
+        return requested;
+    }
+};
+LobbyScene::LobbyScene(GameSession& session)
+    : session(session),
+      controls(std::make_unique<Controls>())
+{
+    controls->refresh(session);
 }
+
+LobbyScene::~LobbyScene() = default;
 
 std::optional<SceneTransition> LobbyScene::update()
 {
@@ -176,33 +247,28 @@ std::optional<SceneTransition> LobbyScene::update()
         return SceneTransition{SceneType::Results, {}};
     }
 
-    if (IsKeyPressed(KEY_ESCAPE) ||
-        UI::isClicked(disconnectButtonRectangle()))
+    controls->refresh(session);
+
+    switch (controls->readAction())
     {
-        session.disconnect();
-        return SceneTransition{SceneType::Menu, {}};
-    }
+        case Controls::Action::ToggleReady:
+        {
+            const auto* player = session.getGame().getLocalPlayer();
+            if (player)
+                session.setReady(!player->isReady());
+            break;
+        }
 
-    if (state != GameSession::State::Joined)
-        return std::nullopt;
+        case Controls::Action::StartRound:
+            session.requestGameStart();
+            break;
 
-    const auto* localPlayer = session.getGame().getLocalPlayer();
+        case Controls::Action::Disconnect:
+            session.disconnect();
+            return SceneTransition{SceneType::Menu, {}};
 
-    if (localPlayer &&
-        (IsKeyPressed(KEY_R) ||
-         UI::isClicked(readyButtonRectangle())))
-    {
-        session.setReady(!localPlayer->isReady());
-
-        // Avoid sending Ready and Start in the same frame.
-        return std::nullopt;
-    }
-
-    if (canStartMatch(session) &&
-        (IsKeyPressed(KEY_ENTER) ||
-         UI::isClicked(startButtonRectangle())))
-    {
-        session.requestGameStart();
+        case Controls::Action::None:
+            break;
     }
 
     return std::nullopt;
@@ -226,16 +292,7 @@ void LobbyScene::render() const
         Background
     );
 
-    UI::drawText("MULTIPLAYER", 32.0f, 24.0f, 14.0f, Muted);
     UI::drawText("Lobby", 32.0f, 48.0f, 34.0f, Text);
-
-    UI::drawText(
-        "Ready up. The leader starts the round.",
-        32.0f,
-        91.0f,
-        16.0f,
-        Muted
-    );
 
     const Rectangle roster = rosterRectangle();
     const Rectangle actions = actionsRectangle();
@@ -390,7 +447,7 @@ void LobbyScene::render() const
 
     // Reserve the roster footer for reset/error notices.
     const std::string footer = session.getNotice().empty()
-        ? "Your player color is also used in the arena."
+        ? ""
         : session.getNotice();
 
     UI::drawFittedText(
@@ -424,20 +481,6 @@ void LobbyScene::render() const
         localReady ? ReadyColor : Text
     );
 
-    UI::drawText(
-        "Press R or use the button below.",
-        left,
-        actions.y + 83.0f,
-        14.0f,
-        Muted
-    );
-
-    UI::drawButton(
-        readyButtonRectangle(),
-        localReady ? "CANCEL READY  [R]" : "READY UP  [R]",
-        joined && localPlayer != nullptr,
-        buttonTheme(!localReady)
-    );
 
     DrawRectangleRec(
         Rectangle{
@@ -510,22 +553,5 @@ void LobbyScene::render() const
         Muted
     );
 
-    const char* startLabel =
-        !joined ? "PREPARING..." :
-        leader ? "START ROUND  [Enter]" :
-                 "LEADER STARTS THE ROUND";
-
-    UI::drawButton(
-        startButtonRectangle(),
-        startLabel,
-        canStartMatch(session),
-        buttonTheme(true)
-    );
-
-    UI::drawButton(
-        disconnectButtonRectangle(),
-        "DISCONNECT  [Esc]",
-        true,
-        buttonTheme(false)
-    );
+    controls->form.draw();
 }

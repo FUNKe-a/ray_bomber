@@ -1,20 +1,25 @@
 #pragma once
 
-#include "Scene.hpp"
+#include "PanelScene.hpp"
 
 #include <memory>
-#include <string>
 
 class GameSession;
 
-class ConnectingScene final : public Scene
+class ConnectingScene final : public PanelScene
 {
 public:
-    ConnectingScene(GameSession& session);
+    explicit ConnectingScene(GameSession& session);
+    ~ConnectingScene() override;
 
     std::optional<SceneTransition> update() override;
-    void render() const override;
 
 private:
+    struct Controls;
+
     GameSession& session;
+    std::unique_ptr<Controls> controls;
+
+    Rectangle panelBounds() const override;
+    void drawContent(Rectangle panel) const override;
 };

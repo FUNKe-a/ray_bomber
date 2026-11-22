@@ -15,7 +15,7 @@ namespace
 {
     Rectangle settingsRectangle()
     {
-        constexpr float width = 460.0f;
+        constexpr float width = 500.0f;
         constexpr float height = 360.0f;
 
         return {
@@ -169,7 +169,7 @@ struct SettingsScene::Controls
           restore("RESTORE", UI::darkTheme(),
                   [&scene] { scene.restoreOpeningSettings(); }),
           back("BACK TO MENU", UI::greenButtonTheme(),
-               [&scene] { scene.backRequested = true; }),
+               [&scene] { scene.requestBackToMenu(); }),
           form{name, address, port, undo, restore, back}
     {
     }
@@ -179,16 +179,16 @@ SettingsScene::~SettingsScene() = default;
 
 std::optional<SceneTransition> SettingsScene::update()
 {
-    if (IsKeyPressed(KEY_ESCAPE))
-        return SceneTransition{SceneType::Menu, {}};
-
     updateControlBounds();
 
     const bool controlDown =
         IsKeyDown(KEY_LEFT_CONTROL) ||
         IsKeyDown(KEY_RIGHT_CONTROL);
 
-    if (controlDown && IsKeyPressed(KEY_Z))
+    if (IsKeyPressed(KEY_ESCAPE)){
+        discardTextInput();
+        requestBackToMenu();
+    } else if (controlDown && IsKeyPressed(KEY_Z))
     {
         discardTextInput();
         undoLastEdit();
@@ -198,10 +198,10 @@ std::optional<SceneTransition> SettingsScene::update()
         controls->form.update();
     }
 
-    updateControlAvailability();
-
     if (backRequested)
-        SceneTransition{SceneType::Menu, {}};
+        return SceneTransition{SceneType::Menu, {}};
+
+    updateControlAvailability();
 
     return std::nullopt;
 }
@@ -275,4 +275,9 @@ void SettingsScene::restoreOpeningSettings()
     settings.restore(openingSettings);
     commandHistory.clear();
     controls->form.focus(controls->name);
+}
+
+void SettingsScene::requestBackToMenu()
+{
+    backRequested = true;
 }

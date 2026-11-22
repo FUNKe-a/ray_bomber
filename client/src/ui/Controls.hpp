@@ -2,7 +2,7 @@
 
 #include "UI.hpp"
 
-#include <cstddef>
+#include <string_view>
 #include <functional>
 #include <initializer_list>
 #include <string>
@@ -48,6 +48,8 @@ namespace UI
 
         void draw(bool focused) const override;
         void handleInput(const ControlInput& input, bool clicked) override;
+        void setLabel(std::string_view label);
+        void setTheme(const Theme& theme);
 
     private:
         std::string label_;

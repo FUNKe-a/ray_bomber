@@ -78,6 +78,17 @@ namespace UI
             onActivated_();
     }
 
+    void Button::setLabel(std::string_view label)
+    {
+        if (label_ != label)
+            label_.assign(label);
+    }
+
+    void Button::setTheme(const Theme& theme)
+    {
+        theme_ = theme;
+    }
+
     LineInput::LineInput(
         std::size_t maxLength,
         AcceptCharacter accepts,
@@ -192,7 +203,9 @@ namespace UI
             return;
         }
 
-        if (!focused_ || !focused_->isEnabled())
+        const bool hasEnabledFocus = focused_ && focused_->isEnabled();
+
+        if (!hasEnabledFocus)
             moveFocus(false);
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
@@ -217,7 +230,7 @@ namespace UI
             }
         }
 
-        if (focused_)
+        if (focused_ && hasEnabledFocus)
             focused_->handleInput(input, false);
     }
 

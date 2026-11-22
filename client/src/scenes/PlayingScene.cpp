@@ -386,7 +386,7 @@ namespace
 
         void drawAbilityCards(const RoundRules& rules, float left, float y, float width)
         {
-            UI::drawText("YOUR ABILITIES", left, y, 14.0f, muted);
+            UI::drawText("ROUND RULES", left, y, 14.0f, muted);
             y += 24.0f;
 
             const float gap = 10.0f;

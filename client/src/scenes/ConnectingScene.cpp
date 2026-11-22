@@ -1,6 +1,7 @@
 #include "ConnectingScene.hpp"
 
 #include "GameSession.hpp"
+#include "Controls.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
@@ -13,11 +14,14 @@ namespace
 {
     Rectangle loadingRectangle()
     {
+        constexpr float width = 500.0f;
+        constexpr float height = 300.0f;
+
         return {
-            (GetScreenWidth() - 480.0f) / 2.0f,
-            (GetScreenHeight() - 300.0f) / 2.0f,
-            480.0f,
-            300.0f
+            (GetScreenWidth() - width) / 2.0f,
+            (GetScreenHeight() - height) / 2.0f,
+            width,
+            height
         };
     }
 
@@ -34,15 +38,35 @@ namespace
     }
 }
 
+struct ConnectingScene::Controls
+{
+    bool cancelRequested = false;
+    UI::Button cancel;
+    UI::Form form;
 
-ConnectingScene::ConnectingScene(GameSession& session): session(session)
+    Controls() :
+        cancel("CANCEL", UI::darkTheme(),
+            [this] { cancelRequested = true; }),
+        form{cancel}
+    {
+        cancel.setBounds(cancelButtonRectangle());
+    }
+};
+
+
+ConnectingScene::ConnectingScene(GameSession& session)
+    : session(session),
+      controls(std::make_unique<Controls>())
 {
 }
 
+ConnectingScene::~ConnectingScene() = default;
+
 std::optional<SceneTransition> ConnectingScene::update()
 {
-    if (UI::isClicked(cancelButtonRectangle()) ||
-        IsKeyPressed(KEY_ESCAPE))
+    controls->form.update();
+
+    if (controls->cancelRequested || IsKeyPressed(KEY_ESCAPE))
     {
         session.disconnect();
         return SceneTransition{SceneType::Menu, {}};
@@ -75,37 +99,15 @@ std::optional<SceneTransition> ConnectingScene::update()
     return std::nullopt;
 }
 
-void ConnectingScene::render() const
+Rectangle ConnectingScene::panelBounds() const
+{
+    return loadingRectangle();
+}
+
+void ConnectingScene::drawContent(Rectangle panel) const
 {
     const Color text{240, 240, 240, 255};
     const Color muted{165, 165, 165, 255};
-
-    DrawRectangle(
-        0, 0,
-        GetScreenWidth(), GetScreenHeight(),
-        Color{20, 20, 20, 255}
-    );
-
-    const auto panel = loadingRectangle();
-
-    DrawRectangleRounded(
-        panel,
-        0.05f,
-        12,
-        Color{29, 29, 29, 255}
-    );
-
-    UI::drawCenteredText(
-        Rectangle{
-            panel.x + 32.0f,
-            panel.y + 28.0f,
-            panel.width - 64.0f,
-            24.0f
-        },
-        "MULTIPLAYER",
-        14,
-        muted
-    );
 
     const bool joining =
         session.getState() == GameSession::State::Joining;
@@ -155,10 +157,5 @@ void ConnectingScene::render() const
         );
     }
 
-    UI::drawButton(
-        cancelButtonRectangle(),
-        "CANCEL",
-        true,
-        UI::darkTheme()
-    );
+    controls->form.draw();
 }

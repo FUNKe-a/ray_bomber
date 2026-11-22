@@ -1,6 +1,7 @@
 #include "ResultsScene.hpp"
 
 #include "GameSession.hpp"
+#include "Controls.hpp"
 #include "UI.hpp"
 
 #include <raylib.h>
@@ -10,8 +11,6 @@
 
 namespace
 {
-    constexpr Color Background{20, 20, 20, 255};
-    constexpr Color Panel{29, 29, 29, 255};
     constexpr Color Surface{42, 42, 42, 255};
     constexpr Color Text{240, 240, 240, 255};
     constexpr Color Muted{165, 165, 165, 255};
@@ -83,9 +82,66 @@ namespace
     }
 }
 
-ResultsScene::ResultsScene(GameSession& session)
-    : session(session)
+struct ResultsScene::Controls
 {
+    bool disconnectRequested = false;
+
+    UI::Button returnToLobby;
+    UI::Button disconnect;
+    UI::Form form;
+
+    explicit Controls(GameSession& session)
+        : returnToLobby(
+              "RETURN TO LOBBY",
+              primaryButtonTheme(),
+              [&session] { session.requestReturnToLobby(); }),
+          disconnect(
+              "DISCONNECT  [Esc]",
+              secondaryButtonTheme(),
+              [this] { disconnectRequested = true; }),
+          form{returnToLobby, disconnect}
+    {
+        returnToLobby.setBounds(returnButtonRectangle());
+        disconnect.setBounds(disconnectButtonRectangle());
+
+        refresh(session);
+
+        if (!returnToLobby.isEnabled())
+            form.focus(disconnect);
+    }
+
+    void refresh(const GameSession& session)
+    {
+        const bool leader = session.getGame().isLocalPlayerLeader();
+        const bool waiting = session.isWaitingForLobbyReset();
+
+        returnToLobby.setEnabled(
+            session.getState() == GameSession::State::Finished &&
+            session.getRoundResult().has_value() &&
+            leader &&
+            !waiting
+        );
+
+        if (waiting)
+            returnToLobby.setLabel("RETURNING...");
+        else if (leader)
+            returnToLobby.setLabel("RETURN TO LOBBY");
+        else
+            returnToLobby.setLabel("WAITING FOR LEADER");
+    }
+};
+
+ResultsScene::ResultsScene(GameSession& session)
+    : session(session),
+      controls(std::make_unique<Controls>(session))
+{
+}
+
+ResultsScene::~ResultsScene() = default;
+
+Rectangle ResultsScene::panelBounds() const
+{
+    return resultsRectangle();
 }
 
 std::optional<SceneTransition> ResultsScene::update()
@@ -123,43 +179,34 @@ std::optional<SceneTransition> ResultsScene::update()
         return SceneTransition{SceneType::Playing, {}};
     }
 
-    if (IsKeyPressed(KEY_ESCAPE) ||
-        UI::isClicked(disconnectButtonRectangle()))
+    if (IsKeyPressed(KEY_ESCAPE))
     {
         session.disconnect();
         return SceneTransition{SceneType::Menu, {}};
     }
 
-    const bool canReturn =
-        state == GameSession::State::Finished &&
-        session.getRoundResult().has_value() &&
-        session.getGame().isLocalPlayerLeader() &&
-        !session.isWaitingForLobbyReset();
+    controls->refresh(session);
+    controls->form.update();
 
-    if (canReturn &&
-        (IsKeyPressed(KEY_ENTER) ||
-         UI::isClicked(returnButtonRectangle())))
+    if (controls->disconnectRequested)
     {
-        session.requestReturnToLobby();
+        session.disconnect();
+        return SceneTransition{SceneType::Menu, {}};
     }
 
+    controls->refresh(session);
     return std::nullopt;
 }
 
-void ResultsScene::render() const
+void ResultsScene::drawContent(Rectangle panel) const
 {
-    DrawRectangle(
-        0,
-        0,
-        GetScreenWidth(),
-        GetScreenHeight(),
-        Background
-    );
-
     const auto& result = session.getRoundResult();
 
     if (!result)
+    {
+        controls->form.draw();
         return;
+    }
 
     const auto& game = session.getGame();
     const bool isLeader = game.isLocalPlayerLeader();
@@ -174,23 +221,6 @@ void ResultsScene::render() const
 
     const Color outcomeColor =
         draw ? Accent : localWinner ? Victory : Text;
-
-    const Rectangle panel = resultsRectangle();
-
-    // Subtle shadow and card background.
-    DrawRectangleRounded(
-        Rectangle{
-            panel.x + 5.0f,
-            panel.y + 7.0f,
-            panel.width,
-            panel.height
-        },
-        0.04f,
-        12,
-        Color{0, 0, 0, 65}
-    );
-
-    DrawRectangleRounded(panel, 0.04f, 12, Panel);
 
     const float contentX = panel.x + 32.0f;
     const float contentWidth = panel.width - 64.0f;
@@ -304,29 +334,7 @@ void ResultsScene::render() const
         Muted
     );
 
-    const bool canReturn =
-        session.getState() == GameSession::State::Finished &&
-        isLeader &&
-        !waiting;
-
-    const char* returnLabel =
-        waiting ? "RETURNING..." :
-        isLeader ? "RETURN TO LOBBY  [Enter]" :
-                   "WAITING FOR LEADER";
-
-    UI::drawButton(
-        returnButtonRectangle(),
-        returnLabel,
-        canReturn,
-        primaryButtonTheme()
-    );
-
-    UI::drawButton(
-        disconnectButtonRectangle(),
-        "DISCONNECT  [Esc]",
-        true,
-        secondaryButtonTheme()
-    );
+    controls->form.draw();
 
     if (!session.getNotice().empty())
     {

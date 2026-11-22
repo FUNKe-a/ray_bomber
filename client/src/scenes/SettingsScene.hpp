@@ -23,6 +23,7 @@ private:
     void updateControlAvailability();
     void undoLastEdit();
     void restoreOpeningSettings();
+    void requestBackToMenu();
 
     ConnectionSettings& settings;
     const ConnectionSettings::Memento openingSettings;
